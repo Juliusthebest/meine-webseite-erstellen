@@ -1,237 +1,293 @@
-"""Erzeugt kurze Lernvideo-Clips (MP4) zu Aufgabe 1.1-1.4 (Lean Production, Landesabitur 2009).
+"""Kurze Lernclips zu Lean Production (Fischer-Interview) im Erklärvideo-Stil.
 
-Aufruf: python3 make_clips.py   -> legt die Clips im Ordner clips/ ab (benötigt Pillow + ffmpeg)
+Nutzt die Bausteine aus erklaervideo/make_video.py.
+Aufruf: python3 make_clips.py            -> clips/*.mp4, clips/ohne_ton/*.mp4, SPRECHERTEXT.md
+        python3 make_clips.py --preview DIR  -> Standbilder je Szene
 """
 import os
 import subprocess
-from PIL import Image, ImageDraw, ImageFont
+import sys
+import tempfile
 
-W, H, FPS = 1280, 720, 30
-OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "clips")
-FONT = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
-FONT_B = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
+HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, os.path.join(HERE, "erklaervideo"))
+import make_video as m  # noqa: E402
+from make_video import (B, S, BLUE, GREEN, RED, YELLOW, INK, MUTED, WHITE, LIGHT_B, LIGHT_G,  # noqa: E402
+                        LIGHT_R, LIGHT_Y, arrow, card, chip, chip_row, emoji, list_row, node, text, title,
+                        title_hl)
 
-BG = (16, 24, 40)
-CARD = (27, 38, 61)
-TEXT = (236, 240, 246)
-MUTED = (150, 165, 190)
-ACCENT = (255, 176, 59)
-ACCENT2 = (88, 196, 220)
-
-f_title = ImageFont.truetype(FONT_B, 44)
-f_big = ImageFont.truetype(FONT_B, 64)
-f_sub = ImageFont.truetype(FONT, 30)
-f_bullet_b = ImageFont.truetype(FONT_B, 30)
-f_bullet = ImageFont.truetype(FONT, 25)
-f_chip = ImageFont.truetype(FONT_B, 22)
-f_small = ImageFont.truetype(FONT, 20)
+CLIPS = []
 
 
-def wrap(draw, text, font, width):
-    words, lines, cur = text.split(), [], ""
-    for w in words:
-        test = (cur + " " + w).strip()
-        if draw.textlength(test, font=font) <= width:
-            cur = test
-        else:
-            lines.append(cur)
-            cur = w
-    if cur:
-        lines.append(cur)
-    return lines
+def clip(name, label, scenes):
+    CLIPS.append(dict(name=name, label=label, scenes=scenes))
 
 
-def ease(x):
-    x = max(0.0, min(1.0, x))
-    return 1 - (1 - x) ** 3
+def sc(label, beats):
+    return dict(label=label, beats=beats)
 
 
-def blend(c, a):
-    return tuple(int(BG[i] + (c[i] - BG[i]) * a) for i in range(3))
+def title_emo(s, emo, y=170, size=84):
+    w = text(s, size, INK, "ExtraBold").width
+    return [*title_hl(s, y, size), S(emoji(emo, int(size * 0.9)), 960 + w / 2 + 40 + size * 0.45, y, f=0.3)]
 
 
-# --------------------------------------------------------------------------- Inhalte
-# Jede Folie: dict(kind="title"|"bullets", ...). Bullets: (Überschrift, Erklärung)
-CLIPS = [
-    ("00_intro", "Einführung", [
-        dict(kind="title", chip="Lernvideo", title="Lean Production",
-             sub="Aufgabe 1.1 – 1.4  |  Interview mit Klaus Fischer (fischer Dübel)", dur=5),
-        dict(kind="bullets", chip="Worum geht's?", title="Lean Production = „schlanke Produktion“",
-             items=[("Ursprung: Toyota", "Toyota-Produktionssystem – Vorbild weltweit"),
-                    ("Kernidee", "Alles weglassen, was dem Kunden keinen Nutzen bringt (Verschwendung)"),
-                    ("Ziel", "Höhere Qualität, kürzere Durchlaufzeiten, geringere Kosten"),
-                    ("Fischer-Interview", "„Menschen statt Roboter“ – Lean in der Praxis")]),
+def grid4(items, accent_list=None, w=800, h=250):
+    """2x2-Karten: items = [(emoji, titel, text, sprechtext)] -> Beats."""
+    pos = [(530, 450), (1390, 450), (530, 760), (1390, 760)]
+    acc = accent_list or [BLUE, GREEN, YELLOW, RED]
+    return [B(say, [S(card(w, h, e, t, s, accent=a), x, y)])
+            for (e, t, s, say), (x, y), a in zip(items, pos, acc)]
+
+
+# --------------------------------------------------------------------------- 00 Einführung
+clip("00_einfuehrung", "Einführung", [
+    sc("Einführung", [
+        B("Heute schauen wir uns an, wie Lean Production in einem echten Unternehmen funktioniert.", [
+            *title_hl("Lean Production in der Praxis", 300, 96),
+            S(emoji("🏭", 190), 760, 600, f=0.4), S(emoji("⚙", 120), 960, 560, f=0.55),
+            S(emoji("🙋", 170), 1160, 600, f=0.7)]),
+        B("Die Idee kommt vom japanischen Autobauer Toyota.", [
+            S(emoji("🇯🇵", 150), 560, 860), S(emoji("🚗", 150), 760, 860, f=0.3),
+            S(chip("Toyota-Produktionssystem", None, 42, fill=LIGHT_B), 1220, 860, f=0.5)]),
+        B("Und die Grundidee ist ganz einfach: Alles weglassen, was dem Kunden keinen Nutzen bringt.", [
+            S(chip("Kein Kundennutzen  =  Verschwendung", "💡", 52, fill=LIGHT_Y, padx=46, pady=26), 960, 520)],
+          clear=True),
     ]),
-    ("01_aufgabe_1-1", "Aufgabe 1.1", [
-        dict(kind="title", chip="Aufgabe 1.1  (10 BE)", title="5 Elemente der Lean Production",
-             sub="Nennen + Auswirkungen auf den Produktionsprozess erläutern", dur=4),
-        dict(kind="bullets", chip="Aufgabe 1.1", title="Elemente & Auswirkungen (1/2)",
-             items=[("1. Just-in-Time / Kanban (Pull-Prinzip)",
-                     "Produktion erst bei Bedarf → kaum Lager, weniger Kapitalbindung, kurze Durchlaufzeiten"),
-                    ("2. Kaizen – Kontinuierlicher Verbesserungsprozess",
-                     "Ständige kleine Verbesserungen durch alle Mitarbeiter → Prozesse werden immer effizienter"),
-                    ("3. Gruppen- / Teamarbeit",
-                     "Teams planen und kontrollieren selbst, Springer möglich → flexibel, motiviert")]),
-        dict(kind="bullets", chip="Aufgabe 1.1", title="Elemente & Auswirkungen (2/2)",
-             items=[("4. Null-Fehler-Prinzip (Jidoka, Qualität an der Quelle)",
-                     "Fehler werden sofort behoben, nicht weitergegeben → weniger Ausschuss und Nacharbeit"),
-                    ("5. Vermeidung von Verschwendung (Muda)",
-                     "Kein Überproduzieren, Warten, Suchen, unnötige Wege → Kosten sinken"),
-                    ("Weitere: 5S, flache Hierarchien, Standardisierung",
-                     "Ordentlicher Arbeitsplatz, schnelle Entscheidungen, stabile Abläufe")]),
+    sc("Das Beispiel", [
+        B("Unser Beispiel ist der Dübelhersteller Klaus Fischer.", [
+            S(emoji("🔩", 200), 960, 330), S(text("Dübelhersteller Fischer", 72, INK, "ExtraBold"), 960, 520, "rise", f=0.3)]),
+        B("Sein Motto lautet: Menschen statt Roboter.", [
+            S(emoji("👷", 170), 700, 760), S(emoji("✅", 70), 790, 690, f=0.2),
+            S(text("statt", 56, MUTED, "ExtraBold"), 960, 760, f=0.35),
+            S(emoji("🤖", 170), 1220, 760, f=0.5), S(emoji("❌", 70), 1310, 690, f=0.7)]),
     ]),
-    ("02_aufgabe_1-2_teil1", "Aufgabe 1.2 – Teil 1", [
-        dict(kind="title", chip="Aufgabe 1.2  (15 BE)", title="Lean Production bei Fischer",
-             sub="Schwerpunkte und betriebliche Erfahrungen aus dem Interview", dur=4),
-        dict(kind="bullets", chip="Aufgabe 1.2", title="Schwerpunkte im Interview (1/2)",
-             items=[("Kundenorientierung (Z. 5–7)", "Jeder Prozess wird vom Kunden aus betrachtet: „Was hat der Kunde davon?“"),
-                    ("Kampf gegen Verschwendung (Z. 7–9)", "Wissen, Zeit und Platz werden nicht mehr verschwendet"),
-                    ("Menschen statt Roboter (Z. 13–17)", "Menschen sind flexibler; Springer ersetzen Ausfälle sofort"),
-                    ("Mehr Ruhe statt Stress (Z. 26–28)", "Effiziente Abläufe → flexible Reaktion auf Aufträge, +14 % bewältigt")]),
-        dict(kind="bullets", chip="Aufgabe 1.2", title="Schwerpunkte im Interview (2/2)",
-             items=[("Arbeitsplatzorganisation (Z. 32–37)", "Suchzeiten vermeiden – gut organisierter Platz = schneller + bessere Qualität"),
-                    ("Visualisierung (Z. 37–39)", "Kennzahlen für alle sichtbar machen statt im Computer verstecken"),
-                    ("Mitarbeiter einbeziehen (Z. 2–3, 40)", "Nur Ziele vorgeben – Mitarbeiter finden den Weg selbst"),
-                    ("Fehlerkultur (Z. 41–42)", "Fehler sind erlaubt – aber nie zweimal derselbe (lernen = Kaizen)")]),
+    sc("Überblick", [
+        B("In den nächsten Clips klären wir vier Fragen.", [*title_hl("Das erwartet dich", 200, 84)]),
+        B("Welche Elemente gehören zu Lean? Wie setzt Fischer das um? Kosten oder Kunde? Und klappt Lean auch in der Forschung?", [
+            S(list_row("🧩", "Die 5 Elemente der Lean Production", 1100, 96, tsize=40), 960, 380, "rise", f=0.0),
+            S(list_row("🔩", "Lean in der Praxis bei Fischer", 1100, 96, tsize=40), 960, 500, "rise", f=0.25),
+            S(list_row("⚖", "Kostenorientierung vs. Kundenorientierung", 1100, 96, tsize=40), 960, 620, "rise", f=0.45),
+            S(list_row("🔬", "Lean in Forschung & Entwicklung", 1100, 96, tsize=40), 960, 740, "rise", f=0.7)]),
     ]),
-    ("03_aufgabe_1-2_teil2", "Aufgabe 1.2 – Teil 2", [
-        dict(kind="title", chip="Aufgabe 1.2", title="Bedarfsgerechter Materialfluss",
-             sub="Beispiel: fahrerlose Transportsysteme → kleiner Zug mit Werkslogistiker (Z. 18–23)", dur=5),
-        dict(kind="bullets", chip="Diskussion", title="Bedeutung des Materialflusses",
-             items=[("Kosten", "+ weniger Lager-, Such- und Stillstandskosten  |  – Personalkosten, teure Umstellung"),
-                    ("Flexibilität", "+ Transport nach Bedarf statt starrem Fahrplan  |  – abhängig von Mitarbeitern"),
-                    ("Kapitalbindung", "+ kleine Bestände → weniger gebundenes Kapital, mehr Liquidität"),
-                    ("Kundenzufriedenheit", "+ kurze Lieferzeiten, hohe Termintreue, auch Kleinstaufträge möglich")]),
-        dict(kind="bullets", chip="Fazit 1.2", title="Fazit",
-             items=[("Chance", "Materialfluss nach dem Pull-Prinzip senkt Kosten und erhöht die Flexibilität"),
-                    ("Risiko", "Ohne Puffer führen Lieferstörungen schnell zum Produktionsstillstand"),
-                    ("Bewertung", "Bei Fischer überwiegen die Vorteile – höhere Kosten des Zugs lohnen sich")]),
+])
+
+# --------------------------------------------------------------------------- 01 Fünf Elemente
+five = [("⏱", "Just-in-Time & Kanban", "Produktion erst bei Bedarf → kaum Lager, weniger Kapitalbindung",
+         "Erstens: Just in Time mit Kanban. Produziert wird erst, wenn Bedarf da ist. So gibt es kaum Lager und weniger gebundenes Kapital."),
+        ("📈", "Kaizen (KVP)", "ständige kleine Verbesserungen → Abläufe werden immer effizienter",
+         "Zweitens: Kaizen, der kontinuierliche Verbesserungsprozess. Alle verbessern ständig in kleinen Schritten."),
+        ("👥", "Teamarbeit", "Teams planen & kontrollieren selbst → flexibel und motiviert",
+         "Drittens: Teamarbeit. Gruppen planen und kontrollieren ihre Arbeit selbst. Das macht flexibel und motiviert."),
+        ("🛑", "Null-Fehler-Prinzip", "Fehler sofort an der Quelle beheben → weniger Ausschuss",
+         "Viertens: das Null-Fehler-Prinzip. Fehler werden sofort an der Quelle behoben, statt weitergegeben. Das spart Ausschuss und Nacharbeit."),
+        ("🗑", "Verschwendung vermeiden", "kein Warten, Suchen, Überproduzieren → geringere Kosten",
+         "Und fünftens: Verschwendung vermeiden. Kein Warten, kein Suchen, keine Überproduktion. Das senkt die Kosten.")]
+pos5 = [(330, 480), (960, 480), (1590, 480), (645, 800), (1275, 800)]
+acc5 = [BLUE, GREEN, YELLOW, RED, BLUE]
+clip("01_fuenf_elemente", "5 Elemente", [
+    sc("5 Elemente", [
+        B("Welche Elemente gehören zur Lean Production? Hier sind die fünf wichtigsten, und was sie im Produktionsprozess bewirken.", [
+            *title_hl("Die 5 Elemente der Lean Production", 170, 76)]),
+    ] + [B(say, [S(card(580, 280, e, t, s, accent=a, tsize=36, ssize=28, esize=78), x, y)])
+         for (e, t, s, say), (x, y), a in zip(five, pos5, acc5)]),
+    sc("Auf einen Blick", [
+        B("Dazu kommen noch weitere Bausteine, zum Beispiel die 5S-Methode, flache Hierarchien und feste Standards.", [
+            *title_hl("Noch mehr Bausteine", 200, 84),
+            *chip_row([("5S-Methode", "🧹"), ("flache Hierarchien", "🪜"), ("Standards", "📋")], 420, 44)]),
+        B("Insgesamt bewirken die Elemente: bessere Qualität, kürzere Durchlaufzeiten und niedrigere Kosten.", [
+            S(emoji("🎯", 100), 470, 700),
+            S(text("Qualität ↑     Zeit ↓     Kosten ↓", 64, BLUE, "ExtraBold"), 1010, 700, "rise", f=0.2)]),
     ]),
-    ("04_aufgabe_1-3", "Aufgabe 1.3", [
-        dict(kind="title", chip="Aufgabe 1.3  (10 BE)", title="Kosten- vs. Kundenorientierung",
-             sub="Früher: Auftrag folgt der Produktion  →  Heute: Produktion folgt dem Auftrag", dur=5),
-        dict(kind="bullets", chip="Aufgabe 1.3", title="Zwei Sichtweisen",
-             items=[("Kostenorientierung (klassisch)", "Große Losgrößen, hohe Auslastung, wenig Umrüsten → niedrige Stückkosten"),
-                    ("   aber:", "Hohe Lagerbestände, lange Lieferzeiten, Kunde muss sich anpassen"),
-                    ("Kundenorientierung (Lean)", "Kleine Lose, 2–3× täglich Umrüsten (Z. 14–15), Varianten nach Wunsch"),
-                    ("   aber:", "Höhere Rüst- und Personalkosten, komplexere Planung")]),
-        dict(kind="bullets", chip="Diskussion", title="Spannungsfeld auflösen",
-             items=[("Rüstzeiten verkürzen (SMED)", "Umrüsten wird billig → kleine Lose lohnen sich"),
-                    ("Mehrwert für Kunden", "Höhere Preise, Kundenbindung, neue Aufträge"),
-                    ("Kein Fertigwarenlager", "Pull-Prinzip spart Lager- und Kapitalkosten"),
-                    ("Fazit", "Kurzfristig Zielkonflikt – langfristig senkt Kundenorientierung auch die Kosten")]),
+])
+
+# --------------------------------------------------------------------------- 02 Fischer: Schwerpunkte
+clip("02_lean_bei_fischer", "Lean bei Fischer", [
+    sc("Lean bei Fischer", [
+        B("Wie setzt Fischer Lean Production im Alltag um? Hier sind die Schwerpunkte aus dem Interview.", [
+            *title_emo("Lean bei Fischer", "🔩", 170, 84)]),
+    ] + grid4([
+        ("🙋", "Kunde im Mittelpunkt", "Jeder Prozess wird vom Kunden aus gedacht: Was hat der Kunde davon?",
+         "Erstens: Der Kunde steht im Mittelpunkt. Bei jedem Prozess fragt Fischer: Was hat der Kunde davon?"),
+        ("🗑", "Kampf gegen Verschwendung", "Wissen, Zeit und Platz werden nicht mehr verschwendet",
+         "Zweitens: der Kampf gegen Verschwendung, und zwar von Wissen, Zeit und Platz."),
+        ("👷", "Menschen statt Roboter", "Menschen sind flexibler – fällt jemand aus, hilft ein Springer",
+         "Drittens: Menschen statt Roboter. Menschen sind flexibler. Fällt jemand aus, springt sofort ein Kollege ein. Ein kaputter Roboter legt dagegen alles lahm."),
+        ("😌", "Ruhe statt Stress", "effiziente Abläufe → 14 % mehr Aufträge ganz gelassen geschafft",
+         "Viertens: Es wird ruhiger statt stressiger. Trotz vierzehn Prozent mehr Aufträgen."),
+    ])),
+    sc("Lean bei Fischer", [
+        B("Und es geht noch weiter.", [*title_emo("Lean bei Fischer", "🔩", 170, 84)]),
+    ] + grid4([
+        ("🔍", "Kein Suchen mehr", "gut organisierter Arbeitsplatz = schneller & bessere Qualität",
+         "Fünftens: kein Suchen mehr. Ein gut organisierter Arbeitsplatz macht schneller und verbessert die Qualität."),
+        ("📊", "Alles sichtbar machen", "Kennzahlen hängen für alle sichtbar aus",
+         "Sechstens: Kennzahlen werden für alle sichtbar gemacht, statt im Computer zu verschwinden."),
+        ("🎯", "Ziele statt Vorgaben", "nur das Ziel wird vorgegeben – den Weg finden die Mitarbeiter",
+         "Siebtens: Fischer gibt nur Ziele vor. Den Weg dahin finden die Mitarbeiter selbst."),
+        ("🔁", "Aus Fehlern lernen", "Fehler sind erlaubt – aber nie zweimal derselbe",
+         "Und achtens: Fehler sind erlaubt, aber derselbe Fehler darf nicht zweimal passieren."),
+    ])),
+])
+
+# --------------------------------------------------------------------------- 03 Materialfluss
+clip("03_materialfluss", "Materialfluss", [
+    sc("Materialfluss", [
+        B("Ein besonders gutes Beispiel ist der Materialfluss im Werk.", [*title_hl("Bedarfsgerechter Materialfluss", 170, 80)]),
+        B("Früher fuhren fahrerlose Transportsysteme nach einem starren Fahrplan, egal ob gerade Material gebraucht wurde.", [
+            S(node("🤖", "Fahrerloses System", 520, 130), 520, 470), S(emoji("❌", 80), 790, 400, f=0.3),
+            S(text("starrer Fahrplan", 36, RED, "Bold"), 520, 590, "rise", f=0.4),
+            S(emoji("⏰", 80), 520, 700, f=0.55)]),
+        B("Fischer hat sie durch einen kleinen Zug ersetzt. Ein Werkslogistiker fährt ihn und liefert genau dann, wenn Material gebraucht wird.", [
+            S(arrow(260, GREEN), 960, 470, "wipe"),
+            S(node("🚂", "Zug + Logistiker", 520, 130), 1400, 470, f=0.2), S(emoji("✅", 80), 1670, 400, f=0.45),
+            S(text("liefert nach Bedarf", 36, GREEN, "Bold"), 1400, 590, "rise", f=0.5),
+            S(emoji("👷", 80), 1400, 700, f=0.6)]),
     ]),
-    ("05_aufgabe_1-4", "Aufgabe 1.4", [
-        dict(kind="title", chip="Aufgabe 1.4  (5 BE)", title="Lean in Forschung & Entwicklung?",
-             sub="Lässt sich der Lean-Gedanke auf die Produktentwicklung übertragen?", dur=4),
-        dict(kind="bullets", chip="Möglichkeiten", title="Was übertragbar ist",
-             items=[("Simultaneous Engineering", "Entwicklungsschritte parallel statt nacheinander → kürzere Entwicklungszeit"),
-                    ("Interdisziplinäre Teams", "F&E, Produktion, Vertrieb arbeiten von Anfang an zusammen"),
-                    ("Kunde früh einbeziehen", "Nur entwickeln, was der Kunde wirklich braucht"),
-                    ("Verschwendung vermeiden", "Keine Doppelarbeit, Wartezeiten, unnötige Schleifen; KVP")]),
-        dict(kind="bullets", chip="Grenzen & Fazit", title="Grenzen",
-             items=[("Kreativität braucht Freiraum", "Forschung lässt sich kaum standardisieren oder takten"),
-                    ("Ungewisse Ergebnisse", "„Umwege“ und Fehlversuche gehören zur Innovation dazu"),
-                    ("Fazit", "Teilweise übertragbar: Organisation lean – aber Raum für Kreativität lassen")]),
+    sc("Was bringt das?", [
+        B("Was bedeutet das für Kosten, Flexibilität, Kapitalbindung und Kundenzufriedenheit?", [
+            *title_hl("Was bringt das?", 170, 84)]),
+    ] + grid4([
+        ("💶", "Kosten", "+ weniger Lager-, Such- & Stillstandskosten\n– Personalkosten, teure Umstellung",
+         "Zu den Kosten: Lager-, Such- und Stillstandskosten sinken. Dafür gibt es Personalkosten, und die Umstellung war teuer."),
+        ("🤸", "Flexibilität", "+ Lieferung nach Bedarf statt Fahrplan\n– abhängig von den Mitarbeitern",
+         "Zur Flexibilität: Geliefert wird nach Bedarf statt nach Fahrplan. Dafür ist man von den Mitarbeitern abhängig."),
+        ("🏦", "Kapitalbindung", "+ kleine Bestände → weniger gebundenes Kapital, mehr Liquidität",
+         "Zur Kapitalbindung: Kleine Bestände binden weniger Kapital. Das Unternehmen bleibt liquide."),
+        ("😊", "Kundenzufriedenheit", "+ kurze Lieferzeiten, hohe Termintreue, auch kleine Aufträge",
+         "Und zur Kundenzufriedenheit: kurze Lieferzeiten, pünktliche Lieferung, und auch kleine Aufträge sind möglich."),
+    ], h=270)),
+    sc("Fazit", [
+        B("Unterm Strich:", [*title_hl("Fazit", 200, 96)]),
+        B("Der Materialfluss nach Bedarf senkt Kosten und macht flexibel.", [
+            S(list_row("✅", "Chance: Kosten sinken, Flexibilität steigt", 1300, 110, fill=LIGHT_G, tsize=44), 960, 420, "rise")]),
+        B("Aber ohne Lagerpuffer kann eine Lieferstörung schnell die Produktion stoppen.", [
+            S(list_row("⚠", "Risiko: ohne Puffer droht Stillstand", 1300, 110, fill=LIGHT_R, tsize=44), 960, 570, "rise")]),
+        B("Bei Fischer überwiegen klar die Vorteile.", [
+            S(list_row("🏆", "Bei Fischer überwiegen die Vorteile", 1300, 110, fill=LIGHT_Y, tsize=44), 960, 720, "rise")]),
     ]),
-]
+])
+
+# --------------------------------------------------------------------------- 04 Kosten vs Kunde
+left = [("✅", "große Lose → niedrige Stückkosten"), ("✅", "hohe Auslastung der Maschinen"),
+        ("⚠", "hohe Lagerbestände"), ("⚠", "lange Lieferzeiten")]
+right = [("✅", "Varianten nach Kundenwunsch"), ("✅", "kurze Lieferzeiten"),
+         ("⚠", "2–3× täglich umrüsten"), ("⚠", "höhere Rüst- & Personalkosten")]
+clip("04_kosten_vs_kunde", "Kosten vs. Kunde", [
+    sc("Perspektivwechsel", [
+        B("Bei Fischer gibt es einen echten Perspektivwechsel.", [*title_emo("Kosten oder Kunde?", "⚖", 170, 84)]),
+        B("Früher musste sich der Auftrag nach der Produktion richten.", [
+            S(chip("FRÜHER", None, 40, fill=RED, color=WHITE), 330, 450),
+            S(node("🏭", "Produktion"), 820, 450, f=0.1), S(arrow(200), 1110, 450, "wipe", f=0.3),
+            S(node("📝", "Auftrag"), 1400, 450, f=0.4)]),
+        B("Heute ist es umgekehrt: Die Produktion richtet sich nach dem Auftrag des Kunden.", [
+            S(chip("HEUTE", None, 40, fill=GREEN, color=WHITE), 330, 720),
+            S(node("📝", "Auftrag"), 820, 720, f=0.1), S(arrow(200, GREEN), 1110, 720, "wipe", f=0.3),
+            S(node("🏭", "Produktion"), 1400, 720, f=0.4)]),
+    ]),
+    sc("Zwei Sichtweisen", [
+        B("Schauen wir uns beide Sichtweisen an.", [
+            title("Zwei Sichtweisen", 160, 80),
+            S(chip("Kostenorientierung", "💶", 42, fill=LIGHT_B), 530, 300, f=0.3),
+            S(chip("Kundenorientierung", "🙋", 42, fill=LIGHT_G), 1390, 300, f=0.5)]),
+        B("Kostenorientiert produziert man große Lose bei hoher Auslastung. Das ist günstig pro Stück, aber es entstehen große Lager und lange Lieferzeiten.",
+          [S(list_row(e, l), 530, 420 + i * 105, "rise", f=i * 0.2) for i, (e, l) in enumerate(left)]),
+        B("Kundenorientiert gibt es Varianten nach Wunsch und kurze Lieferzeiten. Dafür muss man oft umrüsten, und das kostet.",
+          [S(list_row(e, l), 1390, 420 + i * 105, "rise", f=i * 0.2) for i, (e, l) in enumerate(right)]),
+    ]),
+    sc("Lösung", [
+        B("Wie löst man diesen Konflikt?", [*title_hl("Wie passt das zusammen?", 170, 80)]),
+        B("Erstens: Rüstzeiten verkürzen, dann lohnen sich auch kleine Mengen.", [
+            S(card(560, 280, "⚡", "Rüstzeiten verkürzen", "Umrüsten wird schnell & billig → kleine Lose lohnen sich", accent=YELLOW, tsize=36, ssize=28, esize=78), 330, 480)]),
+        B("Zweitens: Zufriedene Kunden bleiben treu und zahlen auch höhere Preise.", [
+            S(card(560, 280, "🤝", "Kundenbindung", "zufriedene Kunden bleiben und zahlen höhere Preise", accent=GREEN, tsize=36, ssize=28, esize=78), 960, 480)]),
+        B("Drittens: Ohne Fertigwarenlager spart man Lager- und Kapitalkosten.", [
+            S(card(560, 280, "📦", "Kein Fertigwarenlager", "spart Lager- und Kapitalkosten", accent=BLUE, tsize=36, ssize=28, esize=78), 1590, 480)]),
+        B("Fazit: Kurzfristig gibt es einen Zielkonflikt. Langfristig senkt die Kundenorientierung aber auch die Kosten.", [
+            S(chip("Kurzfristig Konflikt – langfristig sinken auch die Kosten", "💡", 44, fill=LIGHT_Y, padx=40, pady=24), 960, 820, "rise")]),
+    ]),
+])
+
+# --------------------------------------------------------------------------- 05 F&E
+clip("05_lean_in_der_forschung", "Lean in der Forschung", [
+    sc("Lean in der Forschung", [
+        B("Zum Schluss eine spannende Frage: Funktioniert Lean auch in der Forschung und Entwicklung?", [
+            *title_hl("Lean in der Forschung?", 280, 96),
+            S(emoji("🔬", 160), 700, 560, f=0.35), S(emoji("🧪", 160), 960, 560, f=0.5),
+            S(emoji("💡", 160), 1220, 560, f=0.65)]),
+    ]),
+    sc("Was übertragbar ist", [
+        B("Vieles lässt sich übertragen.", [*title_emo("Das klappt", "✅", 170, 84)]),
+    ] + grid4([
+        ("🔀", "Simultaneous Engineering", "Entwicklungsschritte laufen parallel → neue Produkte schneller fertig",
+         "Zum Beispiel Simultaneous Engineering: Entwicklungsschritte laufen parallel, so ist das neue Produkt schneller fertig."),
+        ("👥", "Gemischte Teams", "Entwicklung, Produktion & Vertrieb arbeiten von Anfang an zusammen",
+         "Gemischte Teams: Entwicklung, Produktion und Vertrieb arbeiten von Anfang an zusammen."),
+        ("🙋", "Kunde früh dabei", "nur entwickeln, was der Kunde wirklich braucht",
+         "Den Kunden früh einbeziehen, damit nur entwickelt wird, was er wirklich braucht."),
+        ("🗑", "Verschwendung vermeiden", "keine Doppelarbeit, keine Wartezeiten, ständig verbessern",
+         "Und auch hier Verschwendung vermeiden: keine Doppelarbeit und keine Wartezeiten."),
+    ])),
+    sc("Grenzen", [
+        B("Es gibt aber auch Grenzen.", [*title_emo("Die Grenzen", "⚠", 170, 84)]),
+        B("Kreativität braucht Freiraum und lässt sich nicht einfach takten oder standardisieren.", [
+            S(card(800, 270, "🎨", "Kreativität braucht Freiraum", "Ideen lassen sich nicht takten oder standardisieren", accent=RED), 530, 470)]),
+        B("Außerdem sind Ergebnisse in der Forschung unsicher. Umwege und Fehlversuche gehören dazu.", [
+            S(card(800, 270, "🎲", "Ergebnisse sind unsicher", "Umwege & Fehlversuche gehören zur Innovation dazu", accent=RED), 1390, 470)]),
+        B("Mein Fazit: Lean ist in der Entwicklung teilweise übertragbar. Die Organisation kann schlank sein, aber es muss Raum für Kreativität bleiben.", [
+            S(chip("Teilweise übertragbar: schlank organisieren – Kreativität frei lassen", "🏁", 40, fill=LIGHT_Y, padx=40, pady=24), 960, 800, "rise")]),
+    ]),
+])
 
 
-# --------------------------------------------------------------------------- Rendering
-def bullet_times(n):
-    start, step = 0.8, 4.5
-    return [start + i * step for i in range(n)], start + n * step + 2.5
+# --------------------------------------------------------------------------- Ausgabe
+def fmt(s):
+    return f"{int(s // 60)}:{int(s % 60):02d}"
 
 
-def draw_frame(slide, t, slide_dur, clip_label, progress):
-    img = Image.new("RGB", (W, H), BG)
-    d = ImageDraw.Draw(img)
-    fade_out = ease((slide_dur - t) / 0.5)
-
-    # Deko
-    d.rectangle([0, 0, 10, H], fill=ACCENT)
-    d.text((40, H - 40), "Lean Production – Landesabitur WiLe LK 2009, Vorschlag A", font=f_small, fill=MUTED)
-    tw = d.textlength(clip_label, font=f_small)
-    d.text((W - 40 - tw, H - 40), clip_label, font=f_small, fill=MUTED)
-    d.rectangle([0, H - 6, int(W * progress), H], fill=ACCENT2)
-
-    a0 = ease(t / 0.6) * fade_out
-    chip = slide["chip"]
-    cw = d.textlength(chip, font=f_chip) + 32
-
-    if slide["kind"] == "title":
-        y_off = int((1 - ease(t / 0.8)) * 30)
-        cx = (W - cw) / 2
-        d.rounded_rectangle([cx, 210 + y_off, cx + cw, 250 + y_off], 18, fill=blend(ACCENT, a0))
-        d.text((cx + 16, 217 + y_off), chip, font=f_chip, fill=blend((20, 20, 30), a0))
-        tl = wrap(d, slide["title"], f_big, W - 200)
-        y = 290 + y_off
-        for line in tl:
-            lw = d.textlength(line, font=f_big)
-            d.text(((W - lw) / 2, y), line, font=f_big, fill=blend(TEXT, a0))
-            y += 78
-        a1 = ease((t - 0.6) / 0.7) * fade_out
-        for line in wrap(d, slide["sub"], f_sub, W - 240):
-            lw = d.textlength(line, font=f_sub)
-            d.text(((W - lw) / 2, y + 20), line, font=f_sub, fill=blend(MUTED, a1))
-            y += 42
-        return img
-
-    # Bullet-Folie
-    d.rounded_rectangle([60, 40, 60 + cw, 80], 18, fill=blend(ACCENT, a0))
-    d.text((76, 47), chip, font=f_chip, fill=blend((20, 20, 30), a0))
-    d.text((60, 100), slide["title"], font=f_title, fill=blend(TEXT, a0))
-    d.line([60, 165, 60 + int(260 * ease(t / 0.8)), 165], fill=ACCENT, width=4)
-
-    times, _ = bullet_times(len(slide["items"]))
-    n = len(slide["items"])
-    box_h = min(118, (H - 230 - 20 * (n - 1)) // n)
-    y = 190
-    for (head, body), ts in zip(slide["items"], times):
-        a = ease((t - ts) / 0.6) * fade_out
-        if a <= 0:
-            y += box_h + 16
-            continue
-        x_off = int((1 - ease((t - ts) / 0.6)) * 40)
-        highlight = ts <= t < ts + 4.5
-        d.rounded_rectangle([60 + x_off, y, W - 60 + x_off, y + box_h], 14, fill=blend(CARD, a))
-        bar_col = ACCENT if highlight else ACCENT2
-        d.rounded_rectangle([60 + x_off, y, 68 + x_off, y + box_h], 4, fill=blend(bar_col, a))
-        d.text((90 + x_off, y + 14), head.strip(), font=f_bullet_b, fill=blend(ACCENT if head.strip().endswith(":") else TEXT, a))
-        by = y + 54
-        for line in wrap(d, body, f_bullet, W - 200)[:2]:
-            d.text((90 + x_off, by), line, font=f_bullet, fill=blend(MUTED, a))
-            by += 30
-        y += box_h + 16
-    return img
-
-
-def render_clip(name, label, slides):
-    os.makedirs(OUT, exist_ok=True)
-    durs = []
-    for s in slides:
-        durs.append(s["dur"] if s["kind"] == "title" else bullet_times(len(s["items"]))[1])
-    total = sum(durs)
-    path = os.path.join(OUT, name + ".mp4")
-    proc = subprocess.Popen(
-        ["ffmpeg", "-y", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "rgb24",
-         "-s", f"{W}x{H}", "-r", str(FPS), "-i", "-",
-         "-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo", "-shortest",
-         "-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "23", "-preset", "medium",
-         "-c:a", "aac", "-movflags", "+faststart", path],
-        stdin=subprocess.PIPE)
-    elapsed = 0.0
-    for s, dur in zip(slides, durs):
-        for f in range(int(dur * FPS)):
-            t = f / FPS
-            img = draw_frame(s, t, dur, label, (elapsed + t) / total)
-            proc.stdin.write(img.tobytes())
-        elapsed += dur
-    proc.stdin.close()
-    proc.wait()
-    print(f"{path}  ({total:.0f} s)")
+def main(preview_dir=None):
+    out_dir = os.path.join(HERE, "clips")
+    silent_dir = os.path.join(out_dir, "ohne_ton")
+    os.makedirs(silent_dir, exist_ok=True)
+    md = ["# Sprechertext – Lernclips Lean Production", "",
+          "Für die Clips **ohne Ton** (Ordner `clips/ohne_ton`). Die Zeit vor jedem Satz zeigt, wann er im Clip beginnt –",
+          "dann erscheinen auch die passenden Bilder. Kleine Abweichungen beim Tempo sind kein Problem.", ""]
+    for c in CLIPS:
+        m.SCENES[:] = c["scenes"]
+        with tempfile.TemporaryDirectory() as tmp:
+            total, audio, subs = m.build_timeline(tmp)
+            md += [f"## {c['label']}  (`{c['name']}.mp4`, ca. {fmt(total)} min)", ""]
+            for s in c["scenes"]:
+                for b in s["beats"]:
+                    md.append(f"**{fmt(b['t0'])}**  {b['sub']}  ")
+            md.append("")
+            if preview_dir:
+                base = m.make_bg()
+                for i, s in enumerate(c["scenes"]):
+                    b = base.copy()
+                    m.chrome(b, s["label"], 0.5)
+                    m.draw_scene(s, s["end"] - 0.01, b).convert("RGB").save(
+                        os.path.join(preview_dir, f"{c['name']}_{i}.png"))
+                continue
+            wav = os.path.join(tmp, "a.wav")
+            import wave
+            with wave.open(wav, "wb") as w:
+                w.setnchannels(1)
+                w.setsampwidth(2)
+                w.setframerate(m.SR)
+                w.writeframes(audio.tobytes())
+            path = os.path.join(out_dir, c["name"] + ".mp4")
+            print(f"{c['name']}: {total:.0f} s")
+            m.render(total, path, wav)
+            subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", path, "-c:v", "copy", "-an",
+                            os.path.join(silent_dir, c["name"] + ".mp4")], check=True)
+    if not preview_dir:
+        with open(os.path.join(HERE, "SPRECHERTEXT.md"), "w", encoding="utf-8") as f:
+            f.write("\n".join(md))
 
 
 if __name__ == "__main__":
-    for name, label, slides in CLIPS:
-        render_clip(name, label, slides)
+    if len(sys.argv) > 2 and sys.argv[1] == "--preview":
+        main(sys.argv[2])
+    else:
+        main()
