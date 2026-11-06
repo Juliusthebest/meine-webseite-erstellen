@@ -12,11 +12,24 @@ import tempfile
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, "erklaervideo"))
 import make_video as m  # noqa: E402
+
+m.HAND = True  # handgemachter Look: Handschrift, wackelige Linien, weißer Hintergrund
+m.SAY.append(("KVP", "Ka Fau Pe"))
 from make_video import (B, S, BLUE, GREEN, RED, YELLOW, INK, MUTED, WHITE, LIGHT_B, LIGHT_G,  # noqa: E402
                         LIGHT_R, LIGHT_Y, arrow, card, chip, chip_row, emoji, list_row, node, text, title,
                         title_hl)
 
 CLIPS = []
+_LOGO = None
+
+
+def toyota(height):
+    """Toyota-Logo (assets/toyota_logo.png) in gewünschter Höhe."""
+    global _LOGO
+    from PIL import Image
+    if _LOGO is None:
+        _LOGO = Image.open(os.path.join(HERE, "assets", "toyota_logo.png")).convert("RGBA")
+    return _LOGO.resize((int(_LOGO.width * height / _LOGO.height), height), Image.LANCZOS)
 
 
 def clip(name, label, scenes):
@@ -48,8 +61,8 @@ clip("00_einfuehrung", "Einführung", [
             S(emoji("🏭", 190), 760, 600, f=0.4), S(emoji("⚙", 120), 960, 560, f=0.55),
             S(emoji("🙋", 170), 1160, 600, f=0.7)]),
         B("Die Idee kommt vom japanischen Autobauer Toyota.", [
-            S(emoji("🇯🇵", 150), 560, 860), S(emoji("🚗", 150), 760, 860, f=0.3),
-            S(chip("Toyota-Produktionssystem", None, 42, fill=LIGHT_B), 1220, 860, f=0.5)]),
+            S(toyota(150), 560, 860), S(emoji("🇯🇵", 100), 790, 860, f=0.3),
+            S(chip("Toyota-Produktionssystem", None, 42, fill=LIGHT_B), 1240, 860, f=0.5)]),
         B("Und die Grundidee ist ganz einfach: Alles weglassen, was dem Kunden keinen Nutzen bringt.", [
             S(chip("Kein Kundennutzen  =  Verschwendung", "💡", 52, fill=LIGHT_Y, padx=46, pady=26), 960, 520)],
           clear=True),
@@ -73,12 +86,12 @@ clip("00_einfuehrung", "Einführung", [
 ])
 
 # --------------------------------------------------------------------------- 01 Fünf Elemente
-five = [("⏱", "Just-in-Time & Kanban", "Produktion erst bei Bedarf → kaum Lager, weniger Kapitalbindung",
-         "Erstens: Just in Time mit Kanban. Produziert wird erst, wenn Bedarf da ist. So gibt es kaum Lager und weniger gebundenes Kapital."),
-        ("📈", "Kaizen (KVP)", "ständige kleine Verbesserungen → Abläufe werden immer effizienter",
-         "Zweitens: Kaizen, der kontinuierliche Verbesserungsprozess. Alle verbessern ständig in kleinen Schritten."),
-        ("👥", "Teamarbeit", "Teams planen & kontrollieren selbst → flexibel und motiviert",
-         "Drittens: Teamarbeit. Gruppen planen und kontrollieren ihre Arbeit selbst. Das macht flexibel und motiviert."),
+five = [("⏱", "Bedarfsgerechte Fertigung", "Hol-Prinzip: produziert wird erst bei Bedarf → kaum Lager, weniger Kapitalbindung",
+         "Erstens: bedarfsgerechte Fertigung nach dem Hol-Prinzip. Produziert und geliefert wird erst, wenn wirklich Bedarf da ist. So gibt es kaum Lager und weniger gebundenes Kapital."),
+        ("📈", "Ständige Verbesserung (KVP)", "kontinuierlicher Verbesserungsprozess → Abläufe werden immer besser",
+         "Zweitens: der kontinuierliche Verbesserungsprozess, kurz KVP. Alle verbessern ständig in kleinen Schritten."),
+        ("👥", "Gruppenarbeit", "Gruppen planen & kontrollieren selbst → flexibel und motiviert",
+         "Drittens: Gruppenarbeit. Gruppen planen und kontrollieren ihre Arbeit selbst. Das macht flexibel und motiviert."),
         ("🛑", "Null-Fehler-Prinzip", "Fehler sofort an der Quelle beheben → weniger Ausschuss",
          "Viertens: das Null-Fehler-Prinzip. Fehler werden sofort an der Quelle behoben, statt weitergegeben. Das spart Ausschuss und Nacharbeit."),
         ("🗑", "Verschwendung vermeiden", "kein Warten, Suchen, Überproduzieren → geringere Kosten",
@@ -87,14 +100,16 @@ pos5 = [(330, 480), (960, 480), (1590, 480), (645, 800), (1275, 800)]
 acc5 = [BLUE, GREEN, YELLOW, RED, BLUE]
 clip("01_fuenf_elemente", "5 Elemente", [
     sc("5 Elemente", [
-        B("Welche Elemente gehören zur Lean Production? Hier sind die fünf wichtigsten, und was sie im Produktionsprozess bewirken.", [
-            *title_hl("Die 5 Elemente der Lean Production", 170, 76)]),
+        B("Welche Elemente gehören zur Lean Production? Das große Vorbild ist Toyota. Hier sind die fünf wichtigsten Elemente, und was sie bewirken.", [
+            *title_hl("Die 5 Elemente der Lean Production", 160, 76),
+            S(text("Vorbild:", 40, MUTED), 800, 268, "rise", f=0.25), S(toyota(62), 935, 268, f=0.3),
+            S(text("Toyota", 40, INK), 1065, 268, "rise", f=0.35)]),
     ] + [B(say, [S(card(580, 280, e, t, s, accent=a, tsize=36, ssize=28, esize=78), x, y)])
          for (e, t, s, say), (x, y), a in zip(five, pos5, acc5)]),
     sc("Auf einen Blick", [
-        B("Dazu kommen noch weitere Bausteine, zum Beispiel die 5S-Methode, flache Hierarchien und feste Standards.", [
+        B("Dazu kommen noch weitere Bausteine, zum Beispiel Ordnung und Sauberkeit am Arbeitsplatz, flache Hierarchien und einheitliche Standards.", [
             *title_hl("Noch mehr Bausteine", 200, 84),
-            *chip_row([("5S-Methode", "🧹"), ("flache Hierarchien", "🪜"), ("Standards", "📋")], 420, 44)]),
+            *chip_row([("Ordnung am Arbeitsplatz", "🧹"), ("flache Hierarchien", "🪜"), ("einheitliche Standards", "📋")], 420, 40)]),
         B("Insgesamt bewirken die Elemente: bessere Qualität, kürzere Durchlaufzeiten und niedrigere Kosten.", [
             S(emoji("🎯", 100), 470, 700),
             S(text("Qualität ↑     Zeit ↓     Kosten ↓", 64, BLUE, "ExtraBold"), 1010, 700, "rise", f=0.2)]),
@@ -219,8 +234,8 @@ clip("05_lean_in_der_forschung", "Lean in der Forschung", [
     sc("Was übertragbar ist", [
         B("Vieles lässt sich übertragen.", [*title_emo("Das klappt", "✅", 170, 84)]),
     ] + grid4([
-        ("🔀", "Simultaneous Engineering", "Entwicklungsschritte laufen parallel → neue Produkte schneller fertig",
-         "Zum Beispiel Simultaneous Engineering: Entwicklungsschritte laufen parallel, so ist das neue Produkt schneller fertig."),
+        ("🔀", "Parallele Entwicklung", "Schritte laufen gleichzeitig statt nacheinander → neue Produkte schneller fertig",
+         "Zum Beispiel parallele Entwicklung: Die Schritte laufen gleichzeitig statt nacheinander. So ist das neue Produkt schneller fertig."),
         ("👥", "Gemischte Teams", "Entwicklung, Produktion & Vertrieb arbeiten von Anfang an zusammen",
          "Gemischte Teams: Entwicklung, Produktion und Vertrieb arbeiten von Anfang an zusammen."),
         ("🙋", "Kunde früh dabei", "nur entwickeln, was der Kunde wirklich braucht",

@@ -12,6 +12,9 @@ import subprocess
 import tempfile
 import wave
 
+import math
+import random
+
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 
@@ -35,15 +38,51 @@ LIGHT_G = (214, 245, 228)
 LIGHT_R = (255, 222, 222)
 LIGHT_B = (220, 232, 255)
 
+# HAND = True: „handgemachter“ Look (Handschrift, wackelige Linien, weißer Hintergrund)
+HAND = False
+HAND_FONT = "/usr/share/fonts/opentype/comic-neue/ComicNeue-"
+_rng = random.Random(7)
 _fonts = {}
+_cmap = None
 
 
-def font(size, weight="Bold"):
-    key = (size, weight)
+def font(size, weight="Bold", fallback=False):
+    key = (size, weight, HAND and not fallback)
     if key not in _fonts:
-        name = ("InterDisplay-" if size >= 60 else "Inter-") + weight + ".otf"
-        _fonts[key] = ImageFont.truetype(FD + name, size)
+        if HAND and not fallback:
+            name = HAND_FONT + ("Regular" if weight in ("Medium", "Regular", "Light") else "Bold") + ".otf"
+            _fonts[key] = ImageFont.truetype(name, size)
+        else:
+            name = ("InterDisplay-" if size >= 60 else "Inter-") + weight + ".otf"
+            _fonts[key] = ImageFont.truetype(FD + name, size)
     return _fonts[key]
+
+
+def has_glyph(ch):
+    global _cmap
+    if not HAND:
+        return True
+    if _cmap is None:
+        from fontTools.ttLib import TTFont
+        _cmap = TTFont(HAND_FONT + "Bold.otf").getBestCmap()
+    return ord(ch) in _cmap or ch == " "
+
+
+def runs(line):
+    """Zerlegt eine Zeile in Abschnitte mit Hauptschrift bzw. Ersatzschrift (für fehlende Zeichen)."""
+    out = []
+    for ch in line:
+        fb = not has_glyph(ch)
+        if out and out[-1][1] == fb:
+            out[-1][0] += ch
+        else:
+            out.append([ch, fb])
+    return out
+
+
+def textlen(line, size, weight):
+    d = ImageDraw.Draw(Image.new("RGBA", (1, 1)))
+    return sum(d.textlength(t, font=font(size, weight, fb)) for t, fb in runs(line))
 
 
 # --------------------------------------------------------------------------- Sprite-Bausteine
@@ -56,16 +95,15 @@ def emoji(ch, size):
     return im.resize((max(1, int(im.width * s)), max(1, int(im.height * s))), Image.LANCZOS)
 
 
-def wrap(text, f, maxw):
+def wrap(text, size, weight, maxw):
     if maxw is None:
         return text.split("\n")
-    d = ImageDraw.Draw(Image.new("RGBA", (1, 1)))
     lines = []
     for para in text.split("\n"):
         cur = ""
         for w in para.split():
             t = (cur + " " + w).strip()
-            if d.textlength(t, font=f) <= maxw or not cur:
+            if textlen(t, size, weight) <= maxw or not cur:
                 cur = t
             else:
                 lines.append(cur)
@@ -76,9 +114,8 @@ def wrap(text, f, maxw):
 
 def text(s, size, color=INK, weight="Bold", maxw=None, align="center", spacing=1.18):
     f = font(size, weight)
-    lines = wrap(s, f, maxw)
-    d = ImageDraw.Draw(Image.new("RGBA", (1, 1)))
-    lw = [d.textlength(l, font=f) for l in lines]
+    lines = wrap(s, size, weight, maxw)
+    lw = [textlen(l, size, weight) for l in lines]
     asc, desc = f.getmetrics()
     lh = int(size * spacing)
     w = int(max(lw)) + 8
@@ -87,11 +124,57 @@ def text(s, size, color=INK, weight="Bold", maxw=None, align="center", spacing=1
     dr = ImageDraw.Draw(im)
     for i, (l, ww) in enumerate(zip(lines, lw)):
         x = {"center": (w - ww) / 2, "left": 4, "right": w - ww - 4}[align]
-        dr.text((x, 4 + i * lh), l, font=f, fill=color)
+        for t, fb in runs(l):
+            ff = font(size, weight, fb)
+            dy = (asc - ff.getmetrics()[0]) if fb else 0
+            dr.text((x, 4 + i * lh + dy), t, font=ff, fill=color)
+            x += dr.textlength(t, font=ff)
     return im
 
 
+def wobble_rect(w, h, radius, inset=4, amp=2.2):
+    """Punkte eines abgerundeten Rechtecks mit leichtem Handzeichnungs-Zittern."""
+    r = min(radius, (h - 2 * inset) / 2, (w - 2 * inset) / 2)
+    x0, y0, x1, y1 = inset, inset, w - 1 - inset, h - 1 - inset
+    pts = []
+    corners = [(x1 - r, y0 + r, -90), (x1 - r, y1 - r, 0), (x0 + r, y1 - r, 90), (x0 + r, y0 + r, 180)]
+    for cx, cy, a0 in corners:
+        for k in range(7):
+            a = math.radians(a0 + k * 15)
+            pts.append((cx + r * math.cos(a), cy + r * math.sin(a)))
+    # Kanten fein unterteilen
+    dense = []
+    for i in range(len(pts)):
+        ax, ay = pts[i]
+        bx, by = pts[(i + 1) % len(pts)]
+        n = max(1, int(math.hypot(bx - ax, by - ay) / 24))
+        for k in range(n):
+            dense.append((ax + (bx - ax) * k / n, ay + (by - ay) * k / n))
+    ph1, ph2 = _rng.uniform(0, 6.3), _rng.uniform(0, 6.3)
+    out = []
+    for i, (x, y) in enumerate(dense):
+        t = i / len(dense) * 2 * math.pi
+        j = amp * (math.sin(3 * t + ph1) * 0.6 + math.sin(7 * t + ph2) * 0.4)
+        out.append((x + j * 0.7, y + j))
+    return out
+
+
+def sketch_line(d, pts, color, width, closed=False):
+    """Zeichnet eine Linie zweimal leicht versetzt – wie mit dem Stift nachgezogen."""
+    seq = pts + [pts[0]] if closed else pts
+    d.line(seq, fill=color, width=width, joint="curve")
+    off = [(x + _rng.uniform(-1.2, 1.2), y + _rng.uniform(-1.2, 1.2)) for x, y in seq]
+    d.line(off, fill=color, width=max(1, width - 2), joint="curve")
+
+
 def panel(w, h, fill=WHITE, radius=26, outline=INK, shadow=8, ow=4):
+    if HAND:
+        im = Image.new("RGBA", (w + shadow, h + shadow), (0, 0, 0, 0))
+        d = ImageDraw.Draw(im)
+        pts = wobble_rect(w, h, radius)
+        d.polygon(pts, fill=fill)
+        sketch_line(d, pts, outline, max(2, ow - 1), closed=True)
+        return im
     im = Image.new("RGBA", (w + shadow, h + shadow), (0, 0, 0, 0))
     d = ImageDraw.Draw(im)
     if shadow:
@@ -119,6 +202,21 @@ def chip(label, emo=None, size=40, fill=WHITE, color=INK, padx=34, pady=18, shad
 def card(w, h, emo, title, sub, fill=WHITE, accent=BLUE, tsize=40, ssize=29, esize=92):
     from PIL import ImageChops
     im = panel(w, h, fill=fill)
+    if HAND:
+        e = emoji(emo, esize)
+        paste(im, e, 30, 36)
+        tx = 30 + e.width + 24
+        t = text(title, tsize, INK, maxw=w - tx - 24, align="left", spacing=1.1)
+        ty = 36 + (e.height - t.height) / 2 if t.height < e.height else 36
+        paste(im, t, tx, ty)
+        d = ImageDraw.Draw(im)
+        uy = ty + t.height + 2
+        ulen = min(t.width, w - tx - 30)
+        pts = [(tx + k * ulen / 12, uy + math.sin(k * 0.9 + _rng.uniform(0, 3)) * 2.2) for k in range(13)]
+        sketch_line(d, pts, accent, 6)
+        s = text(sub, ssize + 3, (72, 74, 88), "Medium", maxw=w - 54, align="left", spacing=1.2)
+        paste(im, s, 26, max(uy + 14, 36 + e.height + 12))
+        return im
     strip = Image.new("RGBA", (w, h), (0, 0, 0, 0))
     ImageDraw.Draw(strip).rectangle([0, 0, w, 22], fill=accent)
     mask = Image.new("L", (w, h), 0)
@@ -147,6 +245,18 @@ def node(emo, label, w=340, h=120, fill=WHITE):
 
 
 def arrow(length, color=INK, thick=12, head=34, flip=False):
+    if HAND:
+        hh = head + 16
+        im = Image.new("RGBA", (length, hh), (0, 0, 0, 0))
+        d = ImageDraw.Draw(im)
+        cy = hh / 2
+        bend = _rng.uniform(-6, 6)
+        pts = [(4 + k * (length - 12) / 16, cy + bend * math.sin(math.pi * k / 16)) for k in range(17)]
+        sketch_line(d, pts, color, 8)
+        tip = pts[-1]
+        sketch_line(d, [(tip[0] - head * 0.8, tip[1] - head * 0.55), tip], color, 8)
+        sketch_line(d, [(tip[0] - head * 0.8, tip[1] + head * 0.6), tip], color, 8)
+        return im.transpose(Image.FLIP_LEFT_RIGHT) if flip else im
     im = Image.new("RGBA", (length, head + 4), (0, 0, 0, 0))
     d = ImageDraw.Draw(im)
     cy = (head + 4) // 2
@@ -156,6 +266,13 @@ def arrow(length, color=INK, thick=12, head=34, flip=False):
 
 
 def marker(w, h, color=YELLOW):
+    if HAND:
+        im = Image.new("RGBA", (w + 20, h + 20), (0, 0, 0, 0))
+        d = ImageDraw.Draw(im)
+        top = [(10 + k * w / 20, 10 + _rng.uniform(-4, 5)) for k in range(21)]
+        bot = [(10 + k * w / 20, 10 + h + _rng.uniform(-5, 4)) for k in range(20, -1, -1)]
+        d.polygon(top + bot, fill=color + (215,))
+        return im.rotate(_rng.uniform(-1.8, 0.8), expand=True, resample=Image.BICUBIC)
     im = Image.new("RGBA", (w, h), (0, 0, 0, 0))
     ImageDraw.Draw(im).rounded_rectangle([0, 0, w - 1, h - 1], h // 3, fill=color + (255,))
     return im.rotate(-1.2, expand=True, resample=Image.BICUBIC)
@@ -187,6 +304,9 @@ def S(img, x, y, anim="pop", f=0.0, d=0.0, anchor="c"):
     """Sprite: x/y = Mittelpunkt (anchor c) bzw. linke Kante (anchor l). f = Verzögerung als Anteil der Beat-Dauer."""
     if anchor == "l":
         x = x + img.width / 2
+    if HAND and anim != "wipe":
+        # leicht schief – wie von Hand aufgeklebt
+        img = img.rotate(_rng.uniform(-1.4, 1.4), expand=True, resample=Image.BICUBIC)
     return dict(img=img, x=x, y=y, anim=anim, f=f, d=d)
 
 
@@ -471,6 +591,8 @@ def out(x):
 
 
 def make_bg():
+    if HAND:
+        return Image.new("RGBA", (W, H), (255, 255, 255, 255))
     im = Image.new("RGBA", (W, H), BG + (255,))
     d = ImageDraw.Draw(im)
     for x in range(40, W, 48):
@@ -480,6 +602,9 @@ def make_bg():
 
 
 def chrome(frame, label, progress):
+    if HAND:
+        paste(frame, text(label, 34, MUTED, "Bold"), 48, 30)
+        return
     d = ImageDraw.Draw(frame)
     lab = chip(label, None, 26, fill=INK, color=WHITE, padx=24, pady=10, shadow=0)
     paste(frame, lab, 40, 34)
@@ -553,7 +678,10 @@ def render(total, outfile, audio_file):
         # Übergang: blaue Fläche wischt durchs Bild
         for s in SCENES[1:]:
             k = (t - (s["start"] - TRANS)) / TRANS
-            if 0 <= k <= 1:
+            if 0 <= k <= 1 and HAND:
+                a = 1 - abs(k - 0.5) * 2  # kurz zu Weiß überblenden
+                frame = Image.blend(frame, Image.new("RGBA", (W, H), (255, 255, 255, 255)), min(1, a * 1.3))
+            elif 0 <= k <= 1:
                 d = ImageDraw.Draw(frame)
                 if k < 0.5:
                     x1 = out(k * 2) * (W + 200)

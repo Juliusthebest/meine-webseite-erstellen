@@ -13,16 +13,16 @@ dann erscheinen auch die passenden Bilder. Kleine Abweichungen beim Tempo sind k
 **0:26**  In den nächsten Clips klären wir vier Fragen.  
 **0:29**  Welche Elemente gehören zu Lean? Wie setzt Fischer das um? Kosten oder Kunde? Und klappt Lean auch in der Forschung?  
 
-## 5 Elemente  (`01_fuenf_elemente.mp4`, ca. 1:13 min)
+## 5 Elemente  (`01_fuenf_elemente.mp4`, ca. 1:19 min)
 
-**0:00**  Welche Elemente gehören zur Lean Production? Hier sind die fünf wichtigsten, und was sie im Produktionsprozess bewirken.  
-**0:09**  Erstens: Just in Time mit Kanban. Produziert wird erst, wenn Bedarf da ist. So gibt es kaum Lager und weniger gebundenes Kapital.  
-**0:19**  Zweitens: Kaizen, der kontinuierliche Verbesserungsprozess. Alle verbessern ständig in kleinen Schritten.  
-**0:27**  Drittens: Teamarbeit. Gruppen planen und kontrollieren ihre Arbeit selbst. Das macht flexibel und motiviert.  
-**0:36**  Viertens: das Null-Fehler-Prinzip. Fehler werden sofort an der Quelle behoben, statt weitergegeben. Das spart Ausschuss und Nacharbeit.  
-**0:46**  Und fünftens: Verschwendung vermeiden. Kein Warten, kein Suchen, keine Überproduktion. Das senkt die Kosten.  
-**0:56**  Dazu kommen noch weitere Bausteine, zum Beispiel die 5S-Methode, flache Hierarchien und feste Standards.  
-**1:04**  Insgesamt bewirken die Elemente: bessere Qualität, kürzere Durchlaufzeiten und niedrigere Kosten.  
+**0:00**  Welche Elemente gehören zur Lean Production? Das große Vorbild ist Toyota. Hier sind die fünf wichtigsten Elemente, und was sie bewirken.  
+**0:11**  Erstens: bedarfsgerechte Fertigung nach dem Hol-Prinzip. Produziert und geliefert wird erst, wenn wirklich Bedarf da ist. So gibt es kaum Lager und weniger gebundenes Kapital.  
+**0:23**  Zweitens: der kontinuierliche Verbesserungsprozess, kurz KVP. Alle verbessern ständig in kleinen Schritten.  
+**0:32**  Drittens: Gruppenarbeit. Gruppen planen und kontrollieren ihre Arbeit selbst. Das macht flexibel und motiviert.  
+**0:41**  Viertens: das Null-Fehler-Prinzip. Fehler werden sofort an der Quelle behoben, statt weitergegeben. Das spart Ausschuss und Nacharbeit.  
+**0:50**  Und fünftens: Verschwendung vermeiden. Kein Warten, kein Suchen, keine Überproduktion. Das senkt die Kosten.  
+**1:01**  Dazu kommen noch weitere Bausteine, zum Beispiel Ordnung und Sauberkeit am Arbeitsplatz, flache Hierarchien und einheitliche Standards.  
+**1:10**  Insgesamt bewirken die Elemente: bessere Qualität, kürzere Durchlaufzeiten und niedrigere Kosten.  
 
 ## Lean bei Fischer  (`02_lean_bei_fischer.mp4`, ca. 1:10 min)
 
@@ -66,15 +66,15 @@ dann erscheinen auch die passenden Bilder. Kleine Abweichungen beim Tempo sind k
 **0:51**  Drittens: Ohne Fertigwarenlager spart man Lager- und Kapitalkosten.  
 **0:56**  Fazit: Kurzfristig gibt es einen Zielkonflikt. Langfristig senkt die Kundenorientierung aber auch die Kosten.  
 
-## Lean in der Forschung  (`05_lean_in_der_forschung.mp4`, ca. 1:03 min)
+## Lean in der Forschung  (`05_lean_in_der_forschung.mp4`, ca. 1:04 min)
 
 **0:00**  Zum Schluss eine spannende Frage: Funktioniert Lean auch in der Forschung und Entwicklung?  
 **0:08**  Vieles lässt sich übertragen.  
-**0:10**  Zum Beispiel Simultaneous Engineering: Entwicklungsschritte laufen parallel, so ist das neue Produkt schneller fertig.  
-**0:18**  Gemischte Teams: Entwicklung, Produktion und Vertrieb arbeiten von Anfang an zusammen.  
-**0:24**  Den Kunden früh einbeziehen, damit nur entwickelt wird, was er wirklich braucht.  
-**0:30**  Und auch hier Verschwendung vermeiden: keine Doppelarbeit und keine Wartezeiten.  
-**0:37**  Es gibt aber auch Grenzen.  
-**0:39**  Kreativität braucht Freiraum und lässt sich nicht einfach takten oder standardisieren.  
-**0:45**  Außerdem sind Ergebnisse in der Forschung unsicher. Umwege und Fehlversuche gehören dazu.  
-**0:51**  Mein Fazit: Lean ist in der Entwicklung teilweise übertragbar. Die Organisation kann schlank sein, aber es muss Raum für Kreativität bleiben.  
+**0:10**  Zum Beispiel parallele Entwicklung: Die Schritte laufen gleichzeitig statt nacheinander. So ist das neue Produkt schneller fertig.  
+**0:19**  Gemischte Teams: Entwicklung, Produktion und Vertrieb arbeiten von Anfang an zusammen.  
+**0:25**  Den Kunden früh einbeziehen, damit nur entwickelt wird, was er wirklich braucht.  
+**0:31**  Und auch hier Verschwendung vermeiden: keine Doppelarbeit und keine Wartezeiten.  
+**0:38**  Es gibt aber auch Grenzen.  
+**0:40**  Kreativität braucht Freiraum und lässt sich nicht einfach takten oder standardisieren.  
+**0:46**  Außerdem sind Ergebnisse in der Forschung unsicher. Umwege und Fehlversuche gehören dazu.  
+**0:52**  Mein Fazit: Lean ist in der Entwicklung teilweise übertragbar. Die Organisation kann schlank sein, aber es muss Raum für Kreativität bleiben.  
