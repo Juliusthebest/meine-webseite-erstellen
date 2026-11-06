@@ -1,0 +1,739 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Abseits einfach erklärt</title>
+<style>
+  :root { --bg:#0b0f15; --fg:#f2f4f8; --muted:#9aa6b8; --accent:#ffd54a; --card:#141b25; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font-family:"Segoe UI",Helvetica,Arial,sans-serif; }
+  .wrap { max-width:1280px; margin:0 auto; padding:24px 16px 40px; }
+  h1 { font-size:clamp(22px,4vw,34px); margin:0 0 4px; }
+  p.sub { color:var(--muted); margin:0 0 18px; }
+  .player { background:#000; border-radius:14px; overflow:hidden; box-shadow:0 20px 60px rgba(0,0,0,.5); }
+  canvas { display:block; width:100%; height:auto; aspect-ratio:16/9; cursor:pointer; }
+  .controls { display:flex; align-items:center; gap:12px; padding:10px 14px; background:var(--card); }
+  .controls button { background:var(--accent); color:#111; border:0; border-radius:8px; width:44px; height:36px; font-size:18px; font-weight:700; cursor:pointer; }
+  .controls input[type=range] { flex:1; accent-color:var(--accent); }
+  .time { font-variant-numeric:tabular-nums; color:var(--muted); font-size:14px; min-width:92px; text-align:right; }
+  .chapters { display:flex; flex-wrap:wrap; gap:8px; margin-top:14px; }
+  .chapters button { background:var(--card); color:var(--fg); border:1px solid #263243; border-radius:999px; padding:7px 14px; font-size:14px; cursor:pointer; }
+  .chapters button.active { border-color:var(--accent); color:var(--accent); }
+  body.render .wrap > :not(.player), body.render .controls { display:none; }
+  body.render .wrap { padding:0; max-width:none; }
+  body.render .player { border-radius:0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Abseits – einfach erklärt</h1>
+  <p class="sub">Animiertes Erklärvideo (ca. 90 Sekunden). Klicke auf Play oder springe direkt zu einem Kapitel.</p>
+  <div class="player">
+    <canvas id="c" width="1280" height="720"></canvas>
+    <div class="controls">
+      <button id="play" aria-label="Abspielen">▶</button>
+      <input id="seek" type="range" min="0" max="1000" value="0" aria-label="Zeitleiste">
+      <span class="time" id="time">0:00 / 0:00</span>
+    </div>
+  </div>
+  <div class="chapters" id="chapters"></div>
+</div>
+<script>
+(() => {
+const W = 1280, H = 720, PANEL = 500;
+const params = new URLSearchParams(location.search);
+const RENDER = params.has('render');
+if (RENDER) document.body.classList.add('render');
+const DPR = RENDER ? (parseFloat(params.get('scale')) || 1) : Math.min(2, window.devicePixelRatio || 1);
+const cv = document.getElementById('c');
+cv.width = W * DPR; cv.height = H * DPR;
+const ctx = cv.getContext('2d');
+const FONT = '"Segoe UI",Helvetica,Arial,sans-serif';
+const ACC = '#ffd54a', GREEN = '#2ee67a', RED = '#ff4d4d', LINEC = '#ffe14d';
+
+/* ---------- helpers ---------- */
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const lerp = (a, b, t) => a + (b - a) * t;
+const ease = t => t < .5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+const easeOut = t => 1 - Math.pow(1 - t, 3);
+const backOut = t => { const c1 = 1.70158, c3 = c1 + 1; return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2); };
+const prog = (t, a, b) => clamp((t - a) / (b - a), 0, 1);
+const EASES = { io: ease, out: easeOut, lin: t => t };
+function track(k, t) {
+  if (t <= k[0][0]) return { x: k[0][1], y: k[0][2] };
+  for (let i = 0; i < k.length - 1; i++) {
+    const a = k[i], b = k[i + 1];
+    if (t <= b[0]) { const p = (EASES[b[3]] || ease)((t - a[0]) / (b[0] - a[0])); return { x: lerp(a[1], b[1], p), y: lerp(a[2], b[2], p) }; }
+  }
+  const z = k[k.length - 1]; return { x: z[1], y: z[2] };
+}
+function pl(id, team, n, k, t, o = {}) {
+  const p = Array.isArray(k[0]) ? track(k, t) : { x: k[0], y: k[1] };
+  return Object.assign({ id, team, n, x: p.x, y: p.y, pop: 1 }, o);
+}
+const popAt = (lt, d) => backOut(prog(lt, d, d + 0.45));
+function autoLine(ps) { const xs = ps.filter(p => p.team !== 'r').map(p => p.x).sort((a, b) => b - a); return xs[1]; }
+const fm = (lt, a, d) => lt < a ? lt : (lt < a + d ? a : lt - d);           // freeze-time mapping
+const fi = (lt, a, d) => prog(lt, a, a + 0.2) * (1 - prog(lt, a + d - 0.25, a + d)); // freeze intensity
+const feet = (p, dx = 1.3, dy = 0.5) => ({ x: p.x + dx, y: p.y + dy, z: 0 });
+function ballPass(from, to, t, t0, t1, h = 0) {
+  const p = prog(t, t0, t1), e = easeOut(p);
+  return { x: lerp(from.x, to.x, e), y: lerp(from.y, to.y, e), z: h * 4 * p * (1 - p) };
+}
+const DEF_CAM = { x: 72, y: 32.5, s: 9.6 };
+const camLerp = (a, b, p) => ({ x: lerp(a.x, b.x, p), y: lerp(a.y, b.y, p), s: lerp(a.s, b.s, p) });
+
+/* ---------- scenes ---------- */
+const BASE = { A10: [56, 40], A9: [78, 22], A11: [70, 52], D4: [83, 28], D5: [82, 42], D3: [76, 14], D2: [77, 56], K1: [101, 34] };
+
+const SCENES = [
+{ id: 'intro', title: 'Los geht\'s', chip: 'Intro', d: 6, panel: lt => easeOut(prog(lt, 4.6, 5.6)),
+  paras: [{ t: 4.9, text: 'Wir schauen uns die Regel **Schritt für Schritt** direkt auf dem Spielfeld an.' }],
+  state(lt) {
+    const cam = camLerp({ x: 52.5, y: 34, s: 9.5 }, DEF_CAM, ease(prog(lt, 4.2, 5.8)));
+    const bp = easeOut(prog(lt, 0.2, 2.8));
+    return { cam, players: [], ball: { x: lerp(14, 52.5, bp), y: 34, z: 0, spin: bp * 30 },
+      overlay: (c, S) => drawIntroTitle(lt) };
+  } },
+
+{ id: 'roles', title: 'Wer ist wer?', chip: 'Wer ist wer?', d: 8, noFadeOut: true,
+  paras: [
+    { t: 0.4, dot: '#e53935', text: '**Rot** greift an und spielt Richtung **rechtes Tor**.' },
+    { t: 1.9, dot: '#1e88e5', text: '**Blau** verteidigt sein Tor.' },
+    { t: 3.7, dot: '#fdd835', text: 'Der **Torwart** ist meistens der **letzte** Spieler vor dem Tor.' }],
+  state(lt) {
+    const B = BASE;
+    const players = [
+      pl('A10', 'r', 10, B.A10, lt, { pop: popAt(lt, 0.3) }),
+      pl('A9', 'r', 9, B.A9, lt, { pop: popAt(lt, 0.45), tag: lt > 0.9 ? { text: 'Angreifer', c: '#e53935', a: prog(lt, 0.9, 1.3) } : null }),
+      pl('A11', 'r', 11, B.A11, lt, { pop: popAt(lt, 0.6) }),
+      pl('D4', 'b', 4, B.D4, lt, { pop: popAt(lt, 1.8) }),
+      pl('D5', 'b', 5, B.D5, lt, { pop: popAt(lt, 1.95), tag: lt > 2.3 ? { text: 'Verteidiger', c: '#1e88e5', a: prog(lt, 2.3, 2.7) } : null }),
+      pl('D3', 'b', 3, B.D3, lt, { pop: popAt(lt, 2.1) }),
+      pl('D2', 'b', 2, B.D2, lt, { pop: popAt(lt, 2.25) }),
+      pl('K1', 'k', 1, B.K1, lt, { pop: popAt(lt, 3.6), tag: lt > 4.0 ? { text: 'Torwart', c: '#f9a825', dark: true, a: prog(lt, 4.0, 4.4) } : null })];
+    return { cam: DEF_CAM, players, ball: Object.assign(feet({ x: B.A10[0], y: B.A10[1] }), { a: prog(lt, 0.3, 0.6) }),
+      overlay: (c, S) => drawArrow(S, 60, 64.5, 98, 64.5, 'Angriffsrichtung', prog(lt, 1, 1.8)) };
+  } },
+
+{ id: 'line', title: 'Die Abseitslinie', chip: 'Abseitslinie', d: 11, noFadeIn: true,
+  paras: [
+    { t: 0.3, text: 'Zähle von der Torlinie aus: Der **Torwart** ist meist der **letzte**, der nächste Verteidiger der **vorletzte** Gegenspieler.' },
+    { t: 2.6, text: 'Auf Höhe des vorletzten Gegenspielers verläuft die **Abseitslinie**.' },
+    { t: 4.2, text: 'Der **rote Bereich** dahinter ist die Abseitszone.' },
+    { t: 5.6, text: 'Die Linie **wandert mit**, wenn sich die Abwehr bewegt.' }],
+  state(lt) {
+    const B = BASE;
+    const players = [
+      pl('A10', 'r', 10, B.A10, lt), pl('A9', 'r', 9, B.A9, lt), pl('A11', 'r', 11, B.A11, lt),
+      pl('D4', 'b', 4, [[0, 83, 28], [5.6, 83, 28], [7, 88, 28], [8.4, 88, 28], [9.8, 83, 28]], lt,
+        { ring: lt > 1.5 ? ACC : null, tag: lt > 1.5 ? { text: '2 · vorletzter', c: ACC, dark: true, a: prog(lt, 1.5, 1.9) } : null }),
+      pl('D5', 'b', 5, B.D5, lt), pl('D3', 'b', 3, B.D3, lt), pl('D2', 'b', 2, B.D2, lt),
+      pl('K1', 'k', 1, B.K1, lt, { tag: lt > 0.6 ? { text: '1 · letzter', c: ACC, dark: true, a: prog(lt, 0.6, 1.0) } : null })];
+    return { cam: DEF_CAM, players, ball: feet({ x: B.A10[0], y: B.A10[1] }),
+      line: { x: autoLine(players), g: prog(lt, 2.4, 3.4), label: true }, shade: prog(lt, 3.3, 4.1), ar: prog(lt, 3.6, 4.2) };
+  } },
+
+{ id: 'onside', title: 'Der entscheidende Moment', chip: 'Moment der Ballabgabe', d: 12,
+  paras: [
+    { t: 0.3, text: 'Entscheidend ist der **Moment der Ballabgabe** – also genau dann, wenn der Pass gespielt wird.' },
+    { t: 2.6, text: 'Nr. 9 steht in diesem Moment **hinter** der Abseitslinie.' },
+    { t: 5.4, text: 'Dass er danach an der Abwehr **vorbeiläuft**, ist erlaubt: **kein Abseits**, das Tor zählt!' }],
+  state(lt) {
+    const F0 = 2.2, FD = 2.6, t = fm(lt, F0, FD);
+    const fr = fi(lt, F0, FD);
+    const ps = [
+      pl('A10', 'r', 10, [60, 42], t, { pop: popAt(lt, 0.05) }),
+      pl('A9', 'r', 9, [[0, 78, 24], [F0, 78, 24], [3.8, 92.5, 26.5, 'io'], [4.5, 94.5, 27.2]], t,
+        { pop: popAt(lt, 0.15), ring: fr > 0 ? GREEN : null, badge: fr > 0.1 ? { text: 'hinter der Linie', c: GREEN, icon: 'check', a: fr } : null }),
+      pl('A11', 'r', 11, [[0, 68, 54], [F0, 68, 54], [4.6, 82, 49]], t, { pop: popAt(lt, 0.25) }),
+      pl('D4', 'b', 4, [[0, 82, 28], [2.5, 82, 28], [4.2, 90, 27.8]], t, { pop: popAt(lt, 0.1) }),
+      pl('D5', 'b', 5, [[0, 82, 44], [2.6, 82, 44], [4.3, 88, 38]], t, { pop: popAt(lt, 0.2) }),
+      pl('D3', 'b', 3, [[0, 76, 14], [2.6, 76, 14], [4.4, 84, 18]], t, { pop: popAt(lt, 0.3) }),
+      pl('D2', 'b', 2, [76, 57], t, { pop: popAt(lt, 0.35) }),
+      pl('K1', 'k', 1, [[0, 101, 34], [3.9, 101, 33], [4.45, 102.4, 30.2, 'out']], t, { pop: popAt(lt, 0.4) })];
+    let ball;
+    if (t < F0) ball = feet({ x: 60, y: 42 });
+    else if (t < 4.1) ball = ballPass({ x: 61.3, y: 42.5 }, { x: 93.6, y: 26.9 }, t, F0, 3.8);
+    else ball = ballPass({ x: 93.6, y: 26.9 }, { x: 106.2, y: 31.6 }, t, 4.1, 4.45, 0.4);
+    const lx = t < F0 ? autoLine(ps) : 82;
+    const la = 1 - prog(lt, 5.6, 6.3);
+    return { cam: DEF_CAM, players: ps, ball, line: { x: lx, g: prog(lt, 0.4, 1.1) * la }, shade: prog(lt, 0.8, 1.4) * la,
+      ar: 1, freeze: fr, flashAt: F0, net: t > 4.45 ? prog(t, 4.45, 4.8) : 0,
+      overlay: (c, S) => { if (lt > 7.2) drawCallout(S.vw / 2, 92, 'TOR! Kein Abseits', GREEN, 'check', prog(lt, 7.2, 7.7), 1.15); } };
+  } },
+
+{ id: 'offside', title: 'Jetzt ist es Abseits', chip: 'Abseits!', d: 12,
+  paras: [
+    { t: 0.3, text: 'Jetzt steht Nr. 9 **schon vor der Linie**, als der Ball gespielt wird.' },
+    { t: 2.6, text: 'Er ist näher am Tor als der Ball **und** der vorletzte Gegner: **Abseitsposition**.' },
+    { t: 5.0, text: 'Der **Assistent** hebt die Fahne, der Schiedsrichter pfeift.' },
+    { t: 8.0, text: 'Strafe: **indirekter Freistoß** für die verteidigende Mannschaft.' }],
+  state(lt) {
+    const F0 = 2.2, FD = 2.6, t = fm(lt, F0, FD);
+    const fr = fi(lt, F0, FD);
+    const stop = 3.35; // whistle (play time)
+    const ts = Math.min(t, stop + 0.3);
+    const ps = [
+      pl('A10', 'r', 10, [60, 42], ts, { pop: popAt(lt, 0.05) }),
+      pl('A9', 'r', 9, [[0, 87, 24], [F0, 87, 24], [3.5, 90.6, 26.4]], ts,
+        { pop: popAt(lt, 0.15), ring: fr > 0 || lt > 6 ? RED : null, badge: fr > 0.1 ? { text: 'vor der Linie', c: RED, icon: 'x', a: fr } : null }),
+      pl('A11', 'r', 11, [[0, 68, 54], [F0, 68, 54], [3.6, 74, 51]], ts, { pop: popAt(lt, 0.25) }),
+      pl('D4', 'b', 4, [[0, 82, 28], [2.5, 82, 28], [3.6, 84.5, 27.5]], ts, { pop: popAt(lt, 0.1) }),
+      pl('D5', 'b', 5, [[0, 82, 44], [2.6, 82, 44], [3.6, 84, 40]], ts, { pop: popAt(lt, 0.2) }),
+      pl('D3', 'b', 3, [76, 14], ts, { pop: popAt(lt, 0.3) }),
+      pl('D2', 'b', 2, [76, 57], ts, { pop: popAt(lt, 0.35) }),
+      pl('K1', 'k', 1, [[0, 101, 34], [3.0, 101, 34], [3.6, 99, 31]], ts, { pop: popAt(lt, 0.4) })];
+    let ball;
+    if (t < F0) ball = feet({ x: 60, y: 42 });
+    else ball = ballPass({ x: 61.3, y: 42.5 }, { x: 91.7, y: 26.8 }, t, F0, 3.5);
+    const lx = t < F0 ? autoLine(ps) : 82;
+    return { cam: DEF_CAM, players: ps, ball, line: { x: lx, g: prog(lt, 0.4, 1.1) }, shade: prog(lt, 0.8, 1.4),
+      ar: 1, flag: prog(lt, 5.0, 5.4), freeze: fr, flashAt: F0,
+      overlay: (c, S) => {
+        if (lt > 5.9) drawWhistle(S.vw / 2 - 150, 104, prog(lt, 5.9, 6.2), lt);
+        if (lt > 6.2) drawCallout(S.vw / 2 + 30, 104, 'ABSEITS!', RED, 'x', prog(lt, 6.2, 6.7), 1.25);
+        if (lt > 8.3) drawCallout(S.vw / 2, H - 70, 'Indirekter Freistoß für Blau', '#1e88e5', 'flag', prog(lt, 8.3, 8.8), 0.95);
+      } };
+  } },
+
+{ id: 'level', title: 'Gleiche Höhe', chip: 'Gleiche Höhe', d: 10,
+  paras: [
+    { t: 0.4, text: '**Gleiche Höhe** wie der vorletzte Verteidiger bedeutet: **kein Abseits**.' },
+    { t: 4.0, text: 'Schon **ein kleines Stück** davor – mit Kopf, Körper oder Fuß – reicht für Abseits.' },
+    { t: 7.4, text: '**Arme und Hände** zählen nicht – mit ihnen darf man ja auch kein Tor erzielen.' }],
+  state(lt) {
+    const cam = camLerp(DEF_CAM, { x: 79, y: 34, s: 22 }, ease(prog(lt, 0.2, 1.4)));
+    const a9 = track([[0, 80, 30], [4.2, 80, 30], [5.0, 81.3, 30], [6.6, 81.3, 30], [7.3, 80, 30]], lt);
+    const ahead = a9.x > 80.05;
+    const ps = [
+      pl('A10', 'r', 10, [66, 41], lt, { pop: popAt(lt, 0.05) }),
+      pl('A9', 'r', 9, [a9.x, a9.y], lt, { pop: popAt(lt, 0.15), ring: lt > 1 ? (ahead ? RED : GREEN) : null, arm: prog(lt, 7.7, 8.3) }),
+      pl('D5', 'b', 5, [80, 38.5], lt, { pop: popAt(lt, 0.25) }),
+      pl('D4', 'b', 4, [74, 46], lt, { pop: popAt(lt, 0.3) }),
+      pl('D3', 'b', 3, [72, 21], lt, { pop: popAt(lt, 0.35) }),
+      pl('K1', 'k', 1, [101, 34], lt)];
+    return { cam, players: ps, ball: feet({ x: 66, y: 41 }), line: { x: 80, g: prog(lt, 0.6, 1.3) }, shade: 0, gap: ahead ? { from: 80, to: a9.x, y: 30 } : null,
+      overlay: (c, S) => {
+        if (lt > 1.3 && lt < 4.4) drawCallout(S.vw / 2, 80, 'Gleiche Höhe = kein Abseits', GREEN, 'check', prog(lt, 1.3, 1.8) * (1 - prog(lt, 4.1, 4.4)));
+        if (lt > 5.0 && lt < 6.9) drawCallout(S.vw / 2, 80, 'Ein Stück davor = Abseits', RED, 'x', prog(lt, 5.0, 5.4) * (1 - prog(lt, 6.6, 6.9)));
+        if (lt > 8.3) drawCallout(S.vw / 2, 80, 'Arm zählt nicht = kein Abseits', GREEN, 'check', prog(lt, 8.3, 8.8));
+      } };
+  } },
+
+{ id: 'except', title: 'Ausnahmen', chip: 'Ausnahmen', d: 13,
+  paras: [
+    { t: 0.3, text: '**Kein Abseits** gibt es …' },
+    { t: 0.8, dot: GREEN, hl: [0, 4.33], text: '… in der **eigenen Hälfte**,' },
+    { t: 4.6, dot: GREEN, hl: [4.33, 8.66], text: '… bei **Einwurf, Abstoß und Eckstoß**,' },
+    { t: 8.9, dot: GREEN, hl: [8.66, 13], text: '… wenn man **hinter dem Ball** steht (zum Beispiel beim Rückpass).' }],
+  state(lt) {
+    const part = lt < 4.33 ? 0 : lt < 8.66 ? 1 : 2, u = lt - part * 4.33;
+    const pf = Math.max(1 - prog(u, 0, 0.25), part < 2 ? prog(u, 4.08, 4.33) : 0);
+    let st;
+    if (part === 0) {
+      const ps = [
+        pl('A10', 'r', 10, [40, 40], u, { pop: popAt(u, 0.05) }),
+        pl('A9', 'r', 9, [[0, 51, 26], [1.0, 51, 26], [2.4, 65.5, 27]], u, { pop: popAt(u, 0.15), ring: u > 1.1 ? GREEN : null,
+          badge: u > 1.2 ? { text: 'eigene Hälfte', c: GREEN, icon: 'check', a: prog(u, 1.2, 1.6) } : null }),
+        pl('D4', 'b', 4, [[0, 49, 30], [1.2, 49, 30], [2.6, 58, 29]], u, { pop: popAt(u, 0.1) }),
+        pl('D5', 'b', 5, [50, 44], u, { pop: popAt(u, 0.2) }),
+        pl('D3', 'b', 3, [48, 16], u, { pop: popAt(u, 0.25) }),
+        pl('D2', 'b', 2, [49, 56], u, { pop: popAt(u, 0.3) }),
+        pl('K1', 'k', 1, [92, 34], u, { pop: popAt(u, 0.35) })];
+      const ball = u < 1 ? feet({ x: 40, y: 40 }) : ballPass({ x: 41.3, y: 40.5 }, { x: 66.4, y: 27.3 }, u, 1.0, 2.4);
+      st = { cam: { x: 54, y: 32.5, s: 9.6 }, players: ps, ball, line: { x: 50, g: prog(u, 0.3, 0.9) * (1 - prog(u, 2.6, 3.0)) }, shade: 0, half: prog(u, 0.3, 0.8) };
+    } else if (part === 1) {
+      const ps = [
+        pl('A10', 'r', 10, [74, 69.6], u, { pop: popAt(u, 0.05) }),
+        pl('A9', 'r', 9, [[0, 90, 48], [1.0, 90, 48], [2.2, 91.5, 46.8]], u, { pop: popAt(u, 0.15), ring: u > 1.3 ? GREEN : null,
+          badge: u > 1.4 ? { text: 'Einwurf', c: GREEN, icon: 'check', a: prog(u, 1.4, 1.8) } : null }),
+        pl('D4', 'b', 4, [85, 40], u, { pop: popAt(u, 0.1) }),
+        pl('D5', 'b', 5, [86, 30], u, { pop: popAt(u, 0.2) }),
+        pl('D3', 'b', 3, [[0, 82, 54], [1.2, 82, 54], [2.4, 86, 51]], u, { pop: popAt(u, 0.25) }),
+        pl('K1', 'k', 1, [101, 34], u, { pop: popAt(u, 0.35) })];
+      const ball = u < 1 ? { x: 74, y: 69.6, z: 2.2 } : (() => { const b = ballPass({ x: 74, y: 69.6 }, { x: 92.6, y: 47.2 }, u, 1.0, 2.2, 2.6); b.z += 2.2 * (1 - prog(u, 1.0, 2.2)); return b; })();
+      st = { cam: { x: 72, y: 34.5, s: 9 }, players: ps, ball, line: { x: 86, g: prog(u, 0.3, 0.9) }, shade: prog(u, 0.5, 1.0), ar: prog(u, 0.2, 0.5),
+        overlay: (c, S) => { if (u > 2.4) drawCallout(S.vw / 2, H - 70, 'gilt auch bei Abstoß & Eckstoß', GREEN, 'check', prog(u, 2.4, 2.9), 0.9); } };
+    } else {
+      const a10 = track([[0, 84, 40], [1.3, 88, 39.2]], u);
+      const ps = [
+        pl('A10', 'r', 10, [a10.x, a10.y], u, { pop: popAt(u, 0.05) }),
+        pl('A9', 'r', 9, [[0, 85.5, 31], [1.4, 85.5, 31], [2.5, 86.5, 32]], u, { pop: popAt(u, 0.15), ring: u > 1.5 ? GREEN : null,
+          badge: u > 1.6 ? { text: 'hinter dem Ball', c: GREEN, icon: 'check', a: prog(u, 1.6, 2.0) } : null }),
+        pl('D4', 'b', 4, [[0, 83, 28], [1.2, 83, 28], [2.5, 84.5, 30]], u, { pop: popAt(u, 0.1) }),
+        pl('D5', 'b', 5, [[0, 82.5, 46], [1.0, 82.5, 46], [2.0, 86, 42]], u, { pop: popAt(u, 0.2) }),
+        pl('K1', 'k', 1, [101, 34], u, { pop: popAt(u, 0.35) })];
+      const ball = u < 1.4 ? feet(a10, 1.2, 0.3) : ballPass({ x: 89.2, y: 39.5 }, { x: 87.5, y: 32.6 }, u, 1.4, 2.4);
+      st = { cam: DEF_CAM, players: ps, ball, line: { x: u < 1.4 ? Math.max(83, a10.x + 1.2) : 89.2, g: prog(u, 0.3, 0.9), label: 'BALL' }, shade: prog(u, 0.5, 1.0), ar: prog(u, 0.2, 0.5) };
+    }
+    st.innerFade = pf;
+    return st;
+  } },
+
+{ id: 'passive', title: 'Nur aktives Eingreifen zählt', chip: 'Passiv', d: 10,
+  paras: [
+    { t: 0.3, text: 'Im Abseits **zu stehen** ist noch **nicht verboten**.' },
+    { t: 2.4, text: 'Strafbar wird es erst, wenn der Spieler **aktiv eingreift**: den Ball spielen, einen Gegner stören oder sich einen Vorteil verschaffen.' },
+    { t: 6.2, text: 'Nr. 9 bleibt **passiv** – das Tor von Nr. 11 **zählt**.' }],
+  state(lt) {
+    const t = lt;
+    const ps = [
+      pl('A10', 'r', 10, [62, 40], t, { pop: popAt(lt, 0.05) }),
+      pl('A9', 'r', 9, [93, 58], t, { pop: popAt(lt, 0.15), dim: lt > 1.2 ? prog(lt, 1.2, 1.6) : 0, ring: lt > 1.2 ? '#9aa6b8' : null,
+        tag: lt > 1.2 ? { text: 'im Abseits, aber passiv', c: '#5d6b80', a: prog(lt, 1.2, 1.6) } : null }),
+      pl('A11', 'r', 11, [[0, 80, 33], [2.4, 80, 33], [3.8, 94.3, 31.2], [4.2, 95, 31.5]], t, { pop: popAt(lt, 0.25),
+        badge: lt > 0.8 && lt < 2.6 ? { text: 'hinter der Linie', c: GREEN, icon: 'check', a: prog(lt, 0.8, 1.2) * (1 - prog(lt, 2.3, 2.6)) } : null }),
+      pl('D4', 'b', 4, [[0, 83, 28], [2.6, 83, 28], [4.2, 91, 29]], t, { pop: popAt(lt, 0.1) }),
+      pl('D5', 'b', 5, [[0, 84, 44], [2.7, 84, 44], [4.3, 90, 38]], t, { pop: popAt(lt, 0.2) }),
+      pl('D2', 'b', 2, [78, 57], t, { pop: popAt(lt, 0.3) }),
+      pl('K1', 'k', 1, [[0, 101, 34], [3.9, 101, 34], [4.4, 102.4, 30.5, 'out']], t, { pop: popAt(lt, 0.35) })];
+    let ball;
+    if (t < 2.4) ball = feet({ x: 62, y: 40 });
+    else if (t < 4.0) ball = ballPass({ x: 63.3, y: 40.5 }, { x: 95.4, y: 31.4 }, t, 2.4, 3.8);
+    else ball = ballPass({ x: 95.4, y: 31.4 }, { x: 106.2, y: 36.6 }, t, 4.0, 4.35, 0.3);
+    const lx = t < 2.4 ? autoLine(ps) : 84;
+    return { cam: DEF_CAM, players: ps, ball, line: { x: lx, g: prog(lt, 0.4, 1.0) * (1 - prog(lt, 5.0, 5.6)) }, shade: prog(lt, 0.7, 1.2) * (1 - prog(lt, 5.0, 5.6)),
+      ar: 1, net: t > 4.35 ? prog(t, 4.35, 4.7) : 0,
+      overlay: (c, S) => { if (lt > 5.2) drawCallout(S.vw / 2, 92, 'TOR zählt!', GREEN, 'check', prog(lt, 5.2, 5.7), 1.15); } };
+  } },
+
+{ id: 'summary', title: 'Zusammenfassung', chip: 'Zusammenfassung', d: 10, panel: lt => 1 - easeOut(prog(lt, 0, 0.7)),
+  paras: [],
+  state(lt) {
+    const B = BASE;
+    const ps = Object.keys(B).map(k => pl(k, k[0] === 'A' ? 'r' : k[0] === 'K' ? 'k' : 'b', +k.slice(1), B[k], lt));
+    return { cam: camLerp(DEF_CAM, { x: 70, y: 34, s: 10.5 }, ease(prog(lt, 0, 10))), players: ps, ball: feet({ x: B.A10[0], y: B.A10[1] }),
+      line: { x: autoLine(ps), g: 1 }, shade: 1, ar: 1, overlay: (c, S) => drawSummary(lt, S) };
+  } }
+];
+let acc = 0; SCENES.forEach(s => { s.start = acc; acc += s.d; });
+const TOTAL = acc;
+const WHISTLES = [{ t: 0.5, d: 0.35 }, { t: SCENES[4].start + 5.9, d: 0.75 }];
+
+/* ---------- drawing primitives ---------- */
+function rr(x, y, w, h, r) { ctx.beginPath(); ctx.roundRect(x, y, w, h, r); }
+function icon(kind, x, y, r, col, sc = '#0b0f15') {
+  ctx.save(); ctx.translate(x, y);
+  ctx.fillStyle = col; ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = sc; ctx.lineWidth = r * 0.28; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  ctx.beginPath();
+  if (kind === 'check') { ctx.moveTo(-r * .45, 0); ctx.lineTo(-r * .1, r * .38); ctx.lineTo(r * .5, -r * .35); }
+  else if (kind === 'x') { ctx.moveTo(-r * .38, -r * .38); ctx.lineTo(r * .38, r * .38); ctx.moveTo(r * .38, -r * .38); ctx.lineTo(-r * .38, r * .38); }
+  else if (kind === 'flag') { ctx.moveTo(-r * .35, r * .5); ctx.lineTo(-r * .35, -r * .5); ctx.stroke(); ctx.fillStyle = '#0b0f15'; ctx.fillRect(-r * .35, -r * .5, r * .75, r * .45); }
+  ctx.stroke(); ctx.restore();
+}
+function drawCallout(x, y, text, col, ic, a, sc = 1) {
+  if (a <= 0) return;
+  ctx.save(); ctx.globalAlpha = clamp(a * 1.5, 0, 1);
+  ctx.translate(x, y); ctx.scale(sc * backOut(a), sc * backOut(a));
+  ctx.font = `800 26px ${FONT}`;
+  const tw = ctx.measureText(text).width, w = tw + 76, h = 52;
+  ctx.shadowColor = 'rgba(0,0,0,.45)'; ctx.shadowBlur = 18; ctx.shadowOffsetY = 6;
+  rr(-w / 2, -h / 2, w, h, 26); ctx.fillStyle = 'rgba(11,15,21,.92)'; ctx.fill();
+  ctx.shadowColor = 'transparent';
+  ctx.lineWidth = 3; ctx.strokeStyle = col; ctx.stroke();
+  icon(ic, -w / 2 + 28, 0, 15, col);
+  ctx.fillStyle = '#fff'; ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
+  ctx.fillText(text, -w / 2 + 52, 1);
+  ctx.restore();
+}
+function drawPill(x, y, text, bg, dark, a, ic) {
+  if (a <= 0) return;
+  ctx.save(); ctx.globalAlpha = a;
+  ctx.font = `700 14px ${FONT}`;
+  const tw = ctx.measureText(text).width, iw = ic ? 20 : 0, w = tw + 20 + iw, h = 24;
+  const yy = y - 6 * (1 - a);
+  ctx.shadowColor = 'rgba(0,0,0,.4)'; ctx.shadowBlur = 8; ctx.shadowOffsetY = 2;
+  rr(x - w / 2, yy - h / 2, w, h, 12); ctx.fillStyle = bg; ctx.fill(); ctx.shadowColor = 'transparent';
+  ctx.beginPath(); ctx.moveTo(x - 6, yy + h / 2 - 1); ctx.lineTo(x + 6, yy + h / 2 - 1); ctx.lineTo(x, yy + h / 2 + 6); ctx.fill();
+  if (ic) icon(ic, x - w / 2 + 16, yy, 8, dark ? '#0b0f15' : '#fff', bg);
+  ctx.fillStyle = dark ? '#111' : '#fff'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+  ctx.fillText(text, x - w / 2 + 10 + iw, yy + 1);
+  ctx.restore();
+}
+
+/* ---------- pitch ---------- */
+function drawPitch(S) {
+  const { cam, vw } = S;
+  ctx.save();
+  ctx.translate(vw / 2, H / 2); ctx.scale(cam.s, cam.s); ctx.translate(-cam.x, -cam.y);
+  ctx.fillStyle = '#21632d'; ctx.fillRect(-60, -40, 230, 150);
+  for (let i = 0; i < 20; i++) { ctx.fillStyle = i % 2 ? '#2b7d39' : '#30893f'; ctx.fillRect(i * 5.25, 0, 5.25, 68); }
+  ctx.strokeStyle = 'rgba(255,255,255,.88)'; ctx.lineWidth = Math.max(0.12, 1.6 / cam.s);
+  ctx.strokeRect(0, 0, 105, 68);
+  ctx.beginPath(); ctx.moveTo(52.5, 0); ctx.lineTo(52.5, 68); ctx.stroke();
+  ctx.beginPath(); ctx.arc(52.5, 34, 9.15, 0, Math.PI * 2); ctx.stroke();
+  ctx.fillStyle = 'rgba(255,255,255,.9)';
+  [[52.5, 34], [94, 34], [11, 34]].forEach(([x, y]) => { ctx.beginPath(); ctx.arc(x, y, 0.3, 0, Math.PI * 2); ctx.fill(); });
+  ctx.strokeRect(88.5, 13.84, 16.5, 40.32); ctx.strokeRect(99.5, 24.84, 5.5, 18.32);
+  ctx.strokeRect(0, 13.84, 16.5, 40.32); ctx.strokeRect(0, 24.84, 5.5, 18.32);
+  const ang = Math.acos(5.5 / 9.15);
+  ctx.beginPath(); ctx.arc(94, 34, 9.15, Math.PI - ang, Math.PI + ang); ctx.stroke();
+  ctx.beginPath(); ctx.arc(11, 34, 9.15, -ang, ang); ctx.stroke();
+  [[0, 0, 0, .5], [105, 0, .5, 1], [105, 68, 1, 1.5], [0, 68, 1.5, 2]].forEach(([x, y, a, b]) => { ctx.beginPath(); ctx.arc(x, y, 1, a * Math.PI, b * Math.PI); ctx.stroke(); });
+  // goals with net
+  [[105, 1], [0, -1]].forEach(([gx, dir]) => {
+    const shake = gx === 105 && S.st.net ? Math.sin(S.st.net * 20) * 0.35 * (1 - S.st.net) : 0;
+    ctx.save(); ctx.translate(gx, 0);
+    ctx.fillStyle = 'rgba(255,255,255,.12)'; ctx.fillRect(dir > 0 ? 0 : -2, 30.34, 2, 7.32);
+    ctx.strokeStyle = 'rgba(255,255,255,.35)'; ctx.lineWidth = Math.max(0.05, 0.8 / cam.s);
+    for (let y = 30.34; y <= 37.7; y += 0.6) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(dir * (2 + shake), y); ctx.stroke(); }
+    for (let x = 0.5; x <= 2; x += 0.5) { ctx.beginPath(); ctx.moveTo(dir * (x + shake * x / 2), 30.34); ctx.lineTo(dir * (x + shake * x / 2), 37.66); ctx.stroke(); }
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = Math.max(0.2, 2.6 / cam.s);
+    ctx.beginPath(); ctx.moveTo(0, 30.34); ctx.lineTo(dir * 2, 30.34); ctx.lineTo(dir * 2, 37.66); ctx.lineTo(0, 37.66); ctx.stroke();
+    ctx.restore();
+  });
+  ctx.restore();
+}
+function drawZones(S) {
+  const { st, P, cam } = S;
+  if (st.half) {
+    const [x0, y0] = P(0, 0), [x1, y1] = P(52.5, 68);
+    ctx.save(); ctx.globalAlpha = st.half;
+    ctx.fillStyle = 'rgba(46,230,122,.16)'; ctx.fillRect(x0, y0, x1 - x0, y1 - y0);
+    ctx.strokeStyle = GREEN; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(x1, y0); ctx.lineTo(x1, y1); ctx.stroke();
+    ctx.restore();
+    drawPill(x1 - 70, y0 + 26, 'eigene Hälfte (Rot)', '#1a7f45', false, st.half);
+  }
+  if (!st.line || st.line.g <= 0) return;
+  const L = st.line, [lx, ty] = P(L.x, 0), [, by] = P(L.x, 68), [gx] = P(105, 0);
+  if (st.shade > 0) {
+    const grd = ctx.createLinearGradient(lx, 0, gx, 0);
+    grd.addColorStop(0, `rgba(255,70,70,${0.30 * st.shade})`); grd.addColorStop(1, `rgba(255,70,70,${0.08 * st.shade})`);
+    ctx.fillStyle = grd; ctx.fillRect(lx, ty, (gx - lx) * easeOut(st.shade), by - ty);
+  }
+  if (st.gap) {
+    const [ax] = P(st.gap.from, 0), [bx, gy] = P(st.gap.to, st.gap.y);
+    ctx.fillStyle = 'rgba(255,77,77,.45)'; ctx.fillRect(ax, ty, bx - ax, by - ty);
+    ctx.strokeStyle = RED; ctx.lineWidth = 3;
+    const yy = gy - 2.4 * cam.s;
+    ctx.beginPath(); ctx.moveTo(ax, yy); ctx.lineTo(bx, yy); ctx.moveTo(ax, yy - 7); ctx.lineTo(ax, yy + 7); ctx.moveTo(bx, yy - 7); ctx.lineTo(bx, yy + 7); ctx.stroke();
+  }
+  const g = easeOut(L.g), yEnd = lerp(ty, by, g);
+  ctx.save();
+  ctx.shadowColor = LINEC; ctx.shadowBlur = 14;
+  ctx.strokeStyle = LINEC; ctx.lineWidth = 4; ctx.setLineDash([16, 10]); ctx.lineDashOffset = -performanceT * 30;
+  ctx.beginPath(); ctx.moveTo(lx, ty); ctx.lineTo(lx, yEnd); ctx.stroke();
+  ctx.restore();
+  if (L.label && g > 0.6) {
+    const a = prog(g, 0.6, 1);
+    drawPill(lx, ty + 18, typeof L.label === 'string' ? L.label : 'ABSEITSLINIE', LINEC, true, a);
+  }
+}
+let performanceT = 0;
+
+function drawPlayer(p, S, ghost) {
+  const [x, y] = S.P(p.x, p.y);
+  const r = clamp(1.4 * S.cam.s, 13, 28) * (ghost ? 1 : p.pop);
+  if (r <= 0.5) return;
+  const cols = { r: ['#ff6b6b', '#c62828'], b: ['#4fa8ff', '#0d47a1'], k: ['#ffe866', '#f2a900'] }[p.team];
+  ctx.save();
+  if (ghost) { ctx.globalAlpha = ghost; ctx.fillStyle = cols[1]; ctx.beginPath(); ctx.arc(x, y, r * 0.9, 0, Math.PI * 2); ctx.fill(); ctx.restore(); return; }
+  if (p.dim) ctx.globalAlpha = 1 - 0.45 * p.dim;
+  ctx.fillStyle = 'rgba(0,0,0,.3)'; ctx.beginPath(); ctx.ellipse(x + r * .25, y + r * .4, r * .95, r * .6, 0, 0, Math.PI * 2); ctx.fill();
+  if (p.ring) {
+    const pulse = 0.5 + 0.5 * Math.sin(performanceT * 6);
+    ctx.strokeStyle = p.ring; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(x, y, r + 6 + pulse * 3, 0, Math.PI * 2); ctx.stroke();
+    ctx.globalAlpha *= 0.35; ctx.beginPath(); ctx.arc(x, y, r + 12 + pulse * 6, 0, Math.PI * 2); ctx.stroke(); ctx.globalAlpha /= 0.35;
+  }
+  if (p.arm) {
+    ctx.strokeStyle = '#ffcfa8'; ctx.lineWidth = Math.max(4, r * 0.32); ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(x + r * .6, y + r * .3); ctx.lineTo(x + r * .6 + 2.3 * S.cam.s * easeOut(p.arm), y + r * .45); ctx.stroke();
+    ctx.strokeStyle = cols[1]; ctx.beginPath(); ctx.moveTo(x + r * .6, y + r * .3); ctx.lineTo(x + r * .6 + 0.7 * S.cam.s * easeOut(p.arm), y + r * .35); ctx.stroke();
+    if (p.arm > 0.5) drawPill(x + r + 1.6 * S.cam.s, y + r + 34, 'Arm', '#5d6b80', false, prog(p.arm, .5, 1));
+  }
+  const g = ctx.createRadialGradient(x - r * .35, y - r * .35, r * .1, x, y, r);
+  g.addColorStop(0, cols[0]); g.addColorStop(1, cols[1]);
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,.95)'; ctx.lineWidth = 2; ctx.stroke();
+  ctx.fillStyle = p.team === 'k' ? '#3a2a00' : '#fff';
+  ctx.font = `800 ${Math.round(r * 0.95)}px ${FONT}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(p.n, x, y + 1);
+  ctx.restore();
+  if (p.tag) drawPill(x, y - r - 18, p.tag.text, p.tag.c, p.tag.dark, p.tag.a);
+  if (p.badge) drawPill(x, y - r - 18, p.badge.text, p.badge.c, true, p.badge.a, p.badge.icon);
+}
+function drawBall(b, S) {
+  if (!b) return;
+  const [x, y] = S.P(b.x, b.y), r = clamp(0.55 * S.cam.s, 5.5, 12), lift = (b.z || 0) * S.cam.s * 0.9;
+  ctx.save(); if (b.a !== undefined) ctx.globalAlpha = b.a;
+  ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.beginPath(); ctx.ellipse(x + 2 + lift * .3, y + 3, r * (1 - Math.min(.4, lift / 200)), r * .55, 0, 0, Math.PI * 2); ctx.fill();
+  const yy = y - lift, rs = r * (1 + lift / 160);
+  const g = ctx.createRadialGradient(x - rs * .4, yy - rs * .4, 1, x, yy, rs); g.addColorStop(0, '#fff'); g.addColorStop(1, '#cfd6df');
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, yy, rs, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = '#222'; ctx.lineWidth = 1; ctx.stroke();
+  const rot = (b.spin !== undefined ? b.spin : b.x * 1.6);
+  ctx.fillStyle = '#1b1b1b';
+  ctx.beginPath(); ctx.arc(x + Math.cos(rot) * rs * .35, yy + Math.sin(rot) * rs * .35, rs * .32, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+}
+function drawAR(S) {
+  const st = S.st; if (!st.ar || !st.line) return;
+  const ax = clamp(st.line.x, 52.5, 104), [x, y] = S.P(ax, -2.6);
+  const sc = clamp(S.cam.s / 9.6, 0.8, 1.6);
+  ctx.save(); ctx.globalAlpha = st.ar; ctx.translate(x, y); ctx.scale(sc, sc);
+  ctx.fillStyle = 'rgba(0,0,0,.3)'; ctx.beginPath(); ctx.ellipse(3, 14, 12, 4, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#c8ff2e'; rr(-8, -8, 16, 20, 6); ctx.fill();
+  ctx.fillStyle = '#1a1a1a'; ctx.fillRect(-8, 4, 16, 8);
+  ctx.fillStyle = '#e8b98a'; ctx.beginPath(); ctx.arc(0, -13, 6, 0, Math.PI * 2); ctx.fill();
+  const f = easeOut(st.flag || 0), ang = lerp(0.35 * Math.PI, -0.42 * Math.PI, f);
+  ctx.save(); ctx.translate(7, -3); ctx.rotate(ang);
+  ctx.strokeStyle = '#333'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(26, 0); ctx.stroke();
+  const wave = f > 0 ? Math.sin(performanceT * 14) * 3 * f : 0;
+  ctx.translate(14, 0);
+  for (let i = 0; i < 2; i++) for (let j = 0; j < 2; j++) {
+    ctx.fillStyle = (i + j) % 2 ? '#ffde00' : '#ff2a2a';
+    ctx.beginPath(); ctx.moveTo(i * 6, j * 6 + 1 + wave * i * .5); ctx.lineTo(i * 6 + 6, j * 6 + 1 + wave * (i + 1) * .5);
+    ctx.lineTo(i * 6 + 6, j * 6 + 7 + wave * (i + 1) * .5); ctx.lineTo(i * 6, j * 6 + 7 + wave * i * .5); ctx.fill();
+  }
+  ctx.restore();
+  ctx.restore();
+  if (st.flag > 0.5) drawPill(x + 78, y + 6, 'Fahne hoch!', RED, false, prog(st.flag, .5, 1));
+}
+function drawArrow(S, x0, y0, x1, y1, label, a) {
+  if (a <= 0) return;
+  const [ax, ay] = S.P(x0, y0), [bx, by] = S.P(lerp(x0, x1, easeOut(a)), y1);
+  ctx.save(); ctx.globalAlpha = 0.9 * a;
+  ctx.strokeStyle = '#fff'; ctx.fillStyle = '#fff'; ctx.lineWidth = 5; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx - 10, by); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(bx + 6, by); ctx.lineTo(bx - 14, by - 11); ctx.lineTo(bx - 14, by + 11); ctx.fill();
+  ctx.font = `700 15px ${FONT}`; ctx.textAlign = 'left'; ctx.textBaseline = 'bottom';
+  ctx.fillText(label.toUpperCase(), ax, ay - 8);
+  ctx.restore();
+}
+function drawWhistle(x, y, a, lt) {
+  ctx.save(); ctx.globalAlpha = a; ctx.translate(x, y); ctx.scale(backOut(a), backOut(a));
+  ctx.fillStyle = '#e9edf3'; rr(-22, -10, 30, 20, 9); ctx.fill(); ctx.fillRect(4, -10, 16, 9);
+  ctx.fillStyle = '#9aa6b8'; ctx.beginPath(); ctx.arc(-10, 1, 4, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; ctx.lineCap = 'round';
+  for (let i = 0; i < 3; i++) { const k = (lt * 2 + i / 3) % 1; ctx.globalAlpha = a * (1 - k); ctx.beginPath(); ctx.arc(20, -6, 10 + k * 20, -0.7, 0.4); ctx.stroke(); }
+  ctx.restore();
+}
+
+/* ---------- rich text ---------- */
+function layoutRich(text, size, maxW) {
+  const units = []; let bold = false, cur = [];
+  const push = () => { if (cur.length) units.push(cur); cur = []; };
+  text.split(/(\*\*)/).forEach(seg => {
+    if (seg === '**') { bold = !bold; return; }
+    seg.split(/(\s+)/).forEach(w => { if (!w) return; if (/^\s+$/.test(w)) push(); else cur.push({ w, bold }); });
+  });
+  push();
+  const fnt = b => `${b ? 700 : 400} ${size}px ${FONT}`;
+  ctx.font = fnt(false); const sp = ctx.measureText(' ').width;
+  const lines = []; let line = [], lw = 0;
+  for (const u of units) {
+    let uw = 0; u.forEach(t => { ctx.font = fnt(t.bold); t.m = ctx.measureText(t.w).width; uw += t.m; });
+    if (line.length && lw + sp + uw > maxW) { lines.push(line); line = []; lw = 0; }
+    if (line.length) lw += sp;
+    line.push({ u, x: lw }); lw += uw;
+  }
+  if (line.length) lines.push(line);
+  return { lines, fnt };
+}
+function drawRich(text, x, y, size, lh, maxW, col, hcol) {
+  const { lines, fnt } = layoutRich(text, size, maxW);
+  ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left';
+  lines.forEach((ln, i) => ln.forEach(({ u, x: ux }) => {
+    let cx = x + ux; u.forEach(t => { ctx.font = fnt(t.bold); ctx.fillStyle = t.bold ? hcol : col; ctx.fillText(t.w, cx, y + i * lh); cx += t.m; });
+  }));
+  return lines.length * lh;
+}
+
+/* ---------- panel / overlays ---------- */
+function drawPanel(scene, idx, lt, vis) {
+  if (vis <= 0.001) return;
+  const x0 = W - PANEL * vis;
+  ctx.save();
+  ctx.fillStyle = '#0f151e'; ctx.fillRect(x0, 0, PANEL, H);
+  ctx.fillStyle = 'rgba(255,255,255,.06)'; ctx.fillRect(x0, 0, 2, H);
+  const cx = x0 + 40, mw = PANEL - 80;
+  const ta = prog(lt, 0, 0.45);
+  ctx.globalAlpha = ta;
+  ctx.font = `700 14px ${FONT}`; ctx.fillStyle = ACC; ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+  if (ctx.letterSpacing !== undefined) ctx.letterSpacing = '3px';
+  ctx.fillText(idx === 0 ? 'ABSEITS · EINFACH ERKLÄRT' : `KAPITEL ${idx} / ${SCENES.length - 2}`, cx, 70);
+  if (ctx.letterSpacing !== undefined) ctx.letterSpacing = '0px';
+  const th = drawRich('**' + scene.title + '**', cx, 116 + (1 - easeOut(ta)) * 10, 34, 42, mw, '#fff', '#fff');
+  ctx.fillStyle = ACC; ctx.fillRect(cx, 116 + th - 20, 64 * easeOut(prog(lt, 0.15, 0.7)), 4);
+  let y = 116 + th + 30;
+  scene.paras.forEach(p => {
+    const a = prog(lt, p.t, p.t + 0.45);
+    if (a <= 0) { return; }
+    let alpha = a;
+    if (p.hl) alpha *= (lt >= p.hl[0] && lt < p.hl[1]) ? 1 : 0.45;
+    ctx.globalAlpha = alpha;
+    const off = (1 - easeOut(a)) * 14;
+    let ix = cx;
+    if (p.dot) { ctx.fillStyle = p.dot; ctx.beginPath(); ctx.arc(cx + 7, y + off - 8, 7, 0, Math.PI * 2); ctx.fill(); ix += 24; }
+    const h = drawRich(p.text, ix, y + off, 22, 31, mw - (ix - cx), '#d7dde7', ACC);
+    y += h + 16;
+  });
+  ctx.restore();
+}
+function drawIntroTitle(lt) {
+  const a = 1 - prog(lt, 3.9, 4.7);
+  if (a <= 0) return;
+  ctx.save();
+  ctx.fillStyle = `rgba(6,10,16,${0.62 * a})`; ctx.fillRect(0, 0, W, H);
+  const word = 'ABSEITS';
+  ctx.font = `900 132px ${FONT}`; ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
+  const ws = [...word].map(ch => ctx.measureText(ch).width), tot = ws.reduce((s, v) => s + v, 0) + 8 * (word.length - 1);
+  let x = W / 2 - tot / 2;
+  [...word].forEach((ch, i) => {
+    const p = prog(lt, 0.25 + i * 0.08, 0.75 + i * 0.08);
+    ctx.save(); ctx.globalAlpha = a * clamp(p * 1.6, 0, 1);
+    ctx.translate(x + ws[i] / 2, H / 2 - 40 + (1 - easeOut(p)) * 50); ctx.scale(lerp(0.6, 1, backOut(p)), lerp(0.6, 1, backOut(p)));
+    ctx.fillStyle = '#fff'; ctx.shadowColor = 'rgba(0,0,0,.5)'; ctx.shadowBlur = 20;
+    ctx.fillText(ch, -ws[i] / 2, 0); ctx.restore();
+    x += ws[i] + 8;
+  });
+  const sp = prog(lt, 1.2, 1.8);
+  ctx.globalAlpha = a * sp; ctx.textAlign = 'center';
+  ctx.fillStyle = ACC; ctx.fillRect(W / 2 - 90 * easeOut(sp), H / 2 + 40, 180 * easeOut(sp), 5);
+  ctx.font = `600 32px ${FONT}`; ctx.fillStyle = '#e6ebf2';
+  ctx.fillText('Die Regel einfach erklärt', W / 2, H / 2 + 92);
+  ctx.restore();
+}
+function drawSummary(lt, S) {
+  const a = prog(lt, 0.2, 0.8);
+  ctx.save();
+  ctx.fillStyle = `rgba(6,10,16,${0.78 * a})`; ctx.fillRect(0, 0, W, H);
+  const items = [
+    'Es zählt der **Moment der Ballabgabe**.',
+    'Abseits: näher am Tor als **Ball und vorletzter Gegenspieler**.',
+    '**Gleiche Höhe** ist **kein** Abseits.',
+    'Kein Abseits in der **eigenen Hälfte** und bei **Einwurf, Abstoß, Ecke**.',
+    'Bestraft wird nur **aktives Eingreifen** – mit **indirektem Freistoß**.'];
+  const x0 = W / 2 - 400;
+  ctx.globalAlpha = a;
+  ctx.font = `700 14px ${FONT}`; ctx.fillStyle = ACC; ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+  if (ctx.letterSpacing !== undefined) ctx.letterSpacing = '3px';
+  ctx.fillText('ZUSAMMENFASSUNG', x0, 118);
+  if (ctx.letterSpacing !== undefined) ctx.letterSpacing = '0px';
+  drawRich('**Das Wichtigste in Kürze**', x0, 166, 42, 50, 800, '#fff', '#fff');
+  items.forEach((t, i) => {
+    const p = prog(lt, 0.9 + i * 1.15, 1.4 + i * 1.15);
+    if (p <= 0) return;
+    const y = 238 + i * 72;
+    ctx.save(); ctx.globalAlpha = p; ctx.translate((1 - easeOut(p)) * -30, 0);
+    rr(x0, y - 4, 800, 58, 14); ctx.fillStyle = 'rgba(255,255,255,.06)'; ctx.fill();
+    ctx.save(); ctx.translate(x0 + 32, y + 25); ctx.scale(backOut(p), backOut(p)); icon('check', 0, 0, 15, GREEN); ctx.restore();
+    drawRich(t, x0 + 62, y + 33, 24, 30, 720, '#e6ebf2', ACC);
+    ctx.restore();
+  });
+  const e = prog(lt, 7.6, 8.2);
+  if (e > 0) {
+    ctx.globalAlpha = e; ctx.textAlign = 'center'; ctx.font = `800 30px ${FONT}`; ctx.fillStyle = ACC;
+    ctx.fillText('Jetzt kennst du die Abseitsregel!', W / 2, 640 + (1 - easeOut(e)) * 12);
+  }
+  ctx.restore();
+}
+
+/* ---------- frame ---------- */
+function sceneAt(t) { for (let i = SCENES.length - 1; i >= 0; i--) if (t >= SCENES[i].start) return i; return 0; }
+function renderAt(T) {
+  T = clamp(T, 0, TOTAL - 1e-4);
+  performanceT = T;
+  const idx = sceneAt(T), sc = SCENES[idx], lt = T - sc.start;
+  const vis = sc.panel ? sc.panel(lt) : 1;
+  const vw = W - PANEL * vis;
+  const st = sc.state(lt);
+  const cam = st.cam;
+  const P = (x, y) => [vw / 2 + (x - cam.x) * cam.s, H / 2 + (y - cam.y) * cam.s];
+  const S = { st, cam, vw, P };
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  ctx.fillStyle = '#0b0f15'; ctx.fillRect(0, 0, W, H);
+  ctx.save(); ctx.beginPath(); ctx.rect(0, 0, vw, H); ctx.clip();
+  drawPitch(S);
+  drawZones(S);
+  // motion trails
+  const prev = [sc.state(Math.max(0, lt - 0.06)), sc.state(Math.max(0, lt - 0.12))];
+  prev.forEach((ps, k) => ps.players.forEach(q => {
+    const p = st.players.find(z => z.id === q.id);
+    if (p && Math.hypot(p.x - q.x, p.y - q.y) > 0.12) drawPlayer(q, S, k ? 0.12 : 0.22);
+  }));
+  st.players.slice().sort((a, b) => a.y - b.y).forEach(p => drawPlayer(p, S));
+  drawBall(st.ball, S);
+  drawAR(S);
+  if (st.freeze > 0) {
+    const f = st.freeze;
+    ctx.save();
+    ctx.fillStyle = `rgba(20,40,80,${0.18 * f})`; ctx.fillRect(0, 0, vw, H);
+    ctx.strokeStyle = `rgba(255,213,74,${0.9 * f})`; ctx.lineWidth = 8; ctx.strokeRect(4, 4, vw - 8, H - 8);
+    ctx.restore();
+    ctx.save(); ctx.globalAlpha = f;
+    rr(22, 22, 300, 40, 20); ctx.fillStyle = ACC; ctx.fill();
+    ctx.fillStyle = '#111'; ctx.fillRect(40, 33, 6, 18); ctx.fillRect(51, 33, 6, 18);
+    ctx.font = `800 17px ${FONT}`; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    ctx.fillText('MOMENT DER BALLABGABE', 68, 43);
+    ctx.restore();
+  }
+  if (st.flashAt !== undefined && lt >= st.flashAt) {
+    const fa = 0.75 * (1 - prog(lt, st.flashAt, st.flashAt + 0.35));
+    if (fa > 0) { ctx.fillStyle = `rgba(255,255,255,${fa})`; ctx.fillRect(0, 0, vw, H); }
+  }
+  if (st.overlay) st.overlay(ctx, S);
+  if (st.innerFade) { ctx.fillStyle = `rgba(11,15,21,${st.innerFade})`; ctx.fillRect(0, 0, vw, H); }
+  ctx.restore();
+  drawPanel(sc, idx, lt, vis);
+  // scene fades
+  let fade = 0;
+  if (!sc.noFadeIn) fade = Math.max(fade, 1 - prog(lt, 0, 0.35));
+  if (!sc.noFadeOut) fade = Math.max(fade, prog(lt, sc.d - 0.3, sc.d));
+  if (idx === SCENES.length - 1) fade = Math.max(fade, prog(lt, sc.d - 0.8, sc.d));
+  if (fade > 0) { ctx.fillStyle = `rgba(0,0,0,${fade})`; ctx.fillRect(0, 0, W, H); }
+  // progress bar
+  ctx.fillStyle = 'rgba(255,255,255,.12)'; ctx.fillRect(0, H - 5, W, 5);
+  ctx.fillStyle = ACC; ctx.fillRect(0, H - 5, W * T / TOTAL, 5);
+  ctx.fillStyle = '#0b0f15'; SCENES.forEach(s => { if (s.start > 0) ctx.fillRect(W * s.start / TOTAL - 1, H - 5, 2, 5); });
+}
+window.renderAt = renderAt; window.TOTAL = TOTAL; window.WHISTLES = WHISTLES;
+
+/* ---------- player UI ---------- */
+if (RENDER) { renderAt(0); return; }
+const btn = document.getElementById('play'), seek = document.getElementById('seek'), time = document.getElementById('time'), chaps = document.getElementById('chapters');
+let t = 0, playing = false, last = 0, actx = null;
+const fmt = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+SCENES.forEach((s, i) => { const b = document.createElement('button'); b.textContent = s.chip; b.onclick = () => { t = s.start + 0.01; if (!playing) toggle(); draw(); }; chaps.appendChild(b); });
+function whistle(d) {
+  if (!actx) return;
+  const o = actx.createOscillator(), lfo = actx.createOscillator(), lg = actx.createGain(), g = actx.createGain(), n = actx.currentTime;
+  o.type = 'sine'; o.frequency.value = 2900; lfo.frequency.value = 38; lg.gain.value = 140;
+  lfo.connect(lg); lg.connect(o.frequency); o.connect(g); g.connect(actx.destination);
+  g.gain.setValueAtTime(0, n); g.gain.linearRampToValueAtTime(0.12, n + 0.03); g.gain.setValueAtTime(0.12, n + d - 0.05); g.gain.linearRampToValueAtTime(0, n + d);
+  o.start(n); lfo.start(n); o.stop(n + d + 0.05); lfo.stop(n + d + 0.05);
+}
+function draw() {
+  renderAt(t);
+  seek.value = Math.round(t / TOTAL * 1000);
+  time.textContent = `${fmt(t)} / ${fmt(TOTAL)}`;
+  const idx = sceneAt(t); [...chaps.children].forEach((b, i) => b.classList.toggle('active', i === idx));
+}
+function frame(now) {
+  if (!playing) return;
+  const dt = Math.min(0.1, (now - last) / 1000); last = now;
+  const nt = t + dt;
+  WHISTLES.forEach(w => { if (t < w.t && nt >= w.t) whistle(w.d); });
+  t = nt;
+  if (t >= TOTAL) { t = TOTAL; playing = false; btn.textContent = '↺'; }
+  draw();
+  if (playing) requestAnimationFrame(frame);
+}
+function toggle() {
+  if (!actx) { try { actx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {} }
+  if (t >= TOTAL) t = 0;
+  playing = !playing; btn.textContent = playing ? '❚❚' : '▶';
+  if (playing) { last = performance.now(); requestAnimationFrame(frame); }
+}
+btn.onclick = toggle; cv.onclick = toggle;
+seek.oninput = () => { t = seek.value / 1000 * TOTAL; draw(); };
+document.addEventListener('keydown', e => { if (e.code === 'Space') { e.preventDefault(); toggle(); } });
+draw();
+})();
+</script>
+</body>
+</html>
