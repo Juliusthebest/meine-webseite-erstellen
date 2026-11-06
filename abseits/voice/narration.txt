@@ -1,0 +1,18 @@
+N1|Abseits. Kaum eine Regel im Fußball sorgt für so viele Diskussionen.
+N2|Dabei ist sie gar nicht so kompliziert. Schauen wir sie uns Schritt für Schritt an.
+N3|Die rote Mannschaft greift an. Blau verteidigt.
+N4|Für das Abseits zählt der vorletzte Spieler der verteidigenden Mannschaft. Meistens ist der Torwart der letzte. Der vorletzte ist dann der hinterste Abwehrspieler.
+N5|Auf seiner Höhe verläuft die Abseitslinie.
+N6|Entscheidend ist nur ein einziger Moment: der Augenblick, in dem der Ball gespielt wird.
+N7|Genau jetzt. Der Stürmer steht noch hinter der Linie. Also: kein Abseits.
+N8|Dass er danach an der Abwehr vorbeiläuft, ist völlig erlaubt. Das Tor zählt.
+N9|Jetzt die gleiche Situation. Aber diesmal steht der Stürmer zu weit vorne.
+N10|Beim Abspiel ist er schon näher am Tor als der Ball und der vorletzte Verteidiger. Das ist Abseits.
+N11|Der Schiedsrichterassistent hebt die Fahne. Es gibt einen indirekten Freistoß für die verteidigende Mannschaft.
+N12|Und wenn beide genau auf gleicher Höhe sind? Dann ist es kein Abseits.
+N13|Gemessen wird mit allen Körperteilen, mit denen man ein Tor erzielen darf. Also Kopf, Rumpf und Füße. Arme und Hände zählen nicht.
+N14|Es gibt ein paar Ausnahmen. In der eigenen Hälfte kann man nicht im Abseits stehen.
+N15|Auch bei Einwurf, Abstoß und Eckstoß gibt es kein Abseits.
+N16|Wichtig: Im Abseits zu stehen, ist noch nicht verboten.
+N17|Strafbar wird es erst, wenn der Spieler aktiv ins Spiel eingreift. Bleibt er passiv, wie hier, zählt das Tor.
+N18|Zusammengefasst: Es zählt der Moment der Ballabgabe. Wer dann näher am Tor ist als der Ball und der vorletzte Gegenspieler, steht im Abseits. Gleiche Höhe ist kein Abseits. Und bestraft wird nur, wer aktiv ins Spiel eingreift.
