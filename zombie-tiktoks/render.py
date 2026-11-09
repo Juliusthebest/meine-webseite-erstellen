@@ -920,6 +920,10 @@ def build(ep_index, out_dir, work_dir):
             cure_at = ln["start"] + ln["dur"]
     if horde_start is not None:
         horde_start = max(0, horde_start - 0.5)
+    if ep.get("flee"):
+        who, li = ep["flee"]
+        st = lines[li]["start"] + lines[li]["dur"] * 0.4
+        actors[who].add_move(st, 1.6, actors[who].x, -400, True)
 
     def zombie_on(t):
         for z in zombie_keys:
@@ -1083,6 +1087,8 @@ def build(ep_index, out_dir, work_dir):
                 cure = ease((t - cure_at) / 1.2)
             if is_z and (fleeing or a.fled(t)):
                 facing = 1
+            if not is_z and fleeing:
+                facing = -1
             av = amp.get(a.key)
             am = float(av[f]) if av is not None and f < len(av) else 0.0
             if ln is None or ln["speaker"] != a.key:

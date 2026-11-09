@@ -93,6 +93,7 @@ EPISODES = [
         ]),
     dict(
         title="Das Opfer", place="street", cast=["BEN", "MIA"],
+        flee=("MIA", 3),  # Mia rennt nach dieser Zeile weg
         hook="Das große Finale. Einer bleibt zurück.",
         lines=[
             ("ERZ", "Das Finale. Die Horde hat sie eingekreist.", "horde"),
