@@ -25,3 +25,34 @@ python3 render.py 1 videos   # rendert Teil 1; 1–7 möglich
 ```
 
 Texte, Figuren und Effekte lassen sich in `episodes.py` ändern.
+
+---
+
+# Serie 2: POV – Mitten in der Klausur kommt eine Warnung aufs Handy
+
+Ordner `serie-2-die-warnung/`: 7 zusammenhängende Teile im Comic-Stil aus der Ich-Perspektive:
+- Fischauge-Kamera, eigene Hände und Handy im Bild
+- NINA-Warnung, SMS-Karten und Untertitel
+- Endkarte „Was würdest du tun?“
+
+Teil 1–6 enden offen, Teil 7 hat ein Ende.
+
+| Teil | Titel | Cliffhanger / Entscheidung |
+|---|---|---|
+| 1 | Die Warnung | Noah hämmert blutend an die Tür → aufmachen oder zulassen? |
+| 2 | Der Kratzer | Noah wurde gebissen → einsperren oder mit ihm abhauen? |
+| 3 | Der Flur | Ein Infizierter packt Noah an der Kellertür → zurückziehen oder durch die Tür? |
+| 4 | Der Keller | Licht aus, jemand schreit → Handylicht an oder still sitzen? |
+| 5 | Die Dunkelheit | Jonas war infiziert, nicht Noah. Mamas Auto ist leer → warten oder suchen? |
+| 6 | Mamas Auto | Mama in der Turnhalle, ihr Arm ist verbunden → zu ihr rennen oder Abstand halten? |
+| 7 | Das Ende | Rettungshubschrauber, Noah schließt das Tor für die anderen → ENDE |
+
+Videos: `serie-2-die-warnung/videos/`. Neu rendern mit:
+
+```bash
+cd serie-2-die-warnung
+VOICE_DIR=/pfad/zu/den/stimmen python3 render2.py 1 videos   # 1–7
+```
+
+Drehbuch: `story2.py`. Schauplätze: `scenes.py`. Figuren: `comic.py`.
+Das Produktionspaket für KI-Video-Tools liegt in `PRODUKTIONSPAKET.md`. Die zusätzliche Stimme `de-eva_k-x-low` wird für Mama verwendet.

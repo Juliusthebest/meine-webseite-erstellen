@@ -1,2 +1,3 @@
 __pycache__/
-zombie-tiktoks/videos/*.mp4.part
+*.pyc
+zombie-tiktoks/serie-2-die-warnung/videos/
