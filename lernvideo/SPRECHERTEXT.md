@@ -3,23 +3,23 @@
 Für die Clips **ohne Ton** (Ordner `clips/ohne_ton`). Die Zeit vor jedem Satz zeigt, wann er im Clip beginnt –
 dann erscheinen auch die passenden Bilder. Kleine Abweichungen beim Tempo sind kein Problem.
 
-## Einführung  (`00_einfuehrung.mp4`, ca. 0:39 min)
+## Einführung  (`00_einfuehrung.mp4`, ca. 0:40 min)
 
 **0:00**  Heute schauen wir uns an, wie Lean Production in einem echten Unternehmen funktioniert.  
 **0:06**  Die Idee kommt vom japanischen Autobauer Toyota.  
 **0:10**  Und die Grundidee ist ganz einfach: Alles weglassen, was dem Kunden keinen Nutzen bringt.  
 **0:18**  Unser Beispiel ist der Dübelhersteller Klaus Fischer.  
-**0:21**  Sein Motto lautet: Menschen statt Roboter.  
-**0:26**  In den nächsten Clips klären wir vier Fragen.  
-**0:29**  Welche Elemente gehören zu Lean? Wie setzt Fischer das um? Kosten oder Kunde? Und klappt Lean auch in der Forschung?  
+**0:22**  Sein Motto lautet: Menschen statt Roboter.  
+**0:27**  In den nächsten Clips klären wir vier Fragen.  
+**0:30**  Welche Elemente gehören zu Lean? Wie setzt Fischer das um? Kosten oder Kunde? Und klappt Lean auch in der Forschung?  
 
 ## 5 Elemente  (`01_fuenf_elemente.mp4`, ca. 1:19 min)
 
 **0:00**  Welche Elemente gehören zur Lean Production? Das große Vorbild ist Toyota. Hier sind die fünf wichtigsten Elemente, und was sie bewirken.  
 **0:10**  Erstens: bedarfsgerechte Fertigung nach dem Hol-Prinzip. Produziert und geliefert wird erst, wenn wirklich Bedarf da ist. So gibt es kaum Lager und weniger gebundenes Kapital.  
 **0:23**  Zweitens: der kontinuierliche Verbesserungsprozess, kurz KVP. Alle verbessern ständig in kleinen Schritten.  
-**0:32**  Drittens: Gruppenarbeit. Gruppen planen und kontrollieren ihre Arbeit selbst. Das macht flexibel und motiviert.  
-**0:41**  Viertens: das Null-Fehler-Prinzip. Fehler werden sofort an der Quelle behoben, statt weitergegeben. Das spart Ausschuss und Nacharbeit.  
+**0:31**  Drittens: Gruppenarbeit. Gruppen planen und kontrollieren ihre Arbeit selbst. Das macht flexibel und motiviert.  
+**0:40**  Viertens: das Null-Fehler-Prinzip. Fehler werden sofort an der Quelle behoben, statt weitergegeben. Das spart Ausschuss und Nacharbeit.  
 **0:50**  Und fünftens: Verschwendung vermeiden. Kein Warten, kein Suchen, keine Überproduktion. Das senkt die Kosten.  
 **1:01**  Dazu kommen noch weitere Bausteine, zum Beispiel Ordnung und Sauberkeit am Arbeitsplatz, flache Hierarchien und einheitliche Standards.  
 **1:10**  Insgesamt bewirken die Elemente: bessere Qualität, kürzere Durchlaufzeiten und niedrigere Kosten.  
@@ -56,7 +56,7 @@ dann erscheinen auch die passenden Bilder. Kleine Abweichungen beim Tempo sind k
 
 **0:00**  Bei Fischer gibt es einen echten Perspektivwechsel.  
 **0:04**  Früher musste sich der Auftrag nach der Produktion richten.  
-**0:08**  Heute ist es umgekehrt: Die Produktion richtet sich nach dem Auftrag des Kunden.  
+**0:07**  Heute ist es umgekehrt: Die Produktion richtet sich nach dem Auftrag des Kunden.  
 **0:15**  Schauen wir uns beide Sichtweisen an.  
 **0:17**  Kostenorientiert produziert man große Lose bei hoher Auslastung. Das ist günstig pro Stück, aber es entstehen große Lager und lange Lieferzeiten.  
 **0:28**  Kundenorientiert gibt es Varianten nach Wunsch und kurze Lieferzeiten. Dafür muss man oft umrüsten, und das kostet.  
