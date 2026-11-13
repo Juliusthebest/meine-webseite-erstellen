@@ -272,7 +272,7 @@ def fmt(s):
 def build(c):
     out_dir = os.path.join(HERE, "clips")
     os.makedirs(os.path.join(out_dir, "ohne_ton"), exist_ok=True)
-    voices = align_voice.prepare(CLIPS.index(c), c["scenes"], flat_engine.SR)
+    voices = align_voice.prepare([x["name"] for x in CLIPS].index(c["name"]), c["scenes"], flat_engine.SR)
     with tempfile.TemporaryDirectory() as tmp:
         total, audio, fx, subs = timeline(c["scenes"], tmp, voices)
         wav, wav_fx = os.path.join(tmp, "a.wav"), os.path.join(tmp, "fx.wav")
@@ -298,7 +298,7 @@ def preview(c, outdir):
 
 def timing(c):
     """Nur Zeitplan berechnen (ohne Rendern) – für den Sprechertext."""
-    voices = align_voice.prepare(CLIPS.index(c), c["scenes"], flat_engine.SR, verbose=False)
+    voices = align_voice.prepare([x["name"] for x in CLIPS].index(c["name"]), c["scenes"], flat_engine.SR, verbose=False)
     with tempfile.TemporaryDirectory() as tmp:
         total, _, _, _ = timeline(c["scenes"], tmp, voices)
     return c["name"], c["label"], total, [(b["t0"], b["sub"]) for s in c["scenes"] for b in s["beats"]]
