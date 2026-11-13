@@ -13,12 +13,15 @@ from multiprocessing import Pool
 
 from PIL import Image
 
+import align_voice
+import flat_engine
 import flat_icons as F
 from flat_engine import (ALPHA, ANGLE, ARROW, B, BANNER, CARD, CHECK, CROSS, DARK, FLOOR_BAND, ICON, LISTCARD, MOVE,
                          MUSTARD, NAVY, NODE, ORANGE, PULSE, SC, STEEL, STOP, TAG, TITLE, TXT, VEHICLE, WHITE, Conveyor,
                          Sp, card_img, comp, draw_scene, k, paste, render, text_img, timeline, write_wav)
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+flat_engine.SR = 48000  # Tonqualität für die fertigen Videos
 _logo = Image.open(os.path.join(HERE, "assets", "toyota_logo.png")).convert("RGBA")
 
 
@@ -269,8 +272,9 @@ def fmt(s):
 def build(c):
     out_dir = os.path.join(HERE, "clips")
     os.makedirs(os.path.join(out_dir, "ohne_ton"), exist_ok=True)
+    voices = align_voice.prepare(CLIPS.index(c), c["scenes"], flat_engine.SR)
     with tempfile.TemporaryDirectory() as tmp:
-        total, audio, fx, subs = timeline(c["scenes"], tmp)
+        total, audio, fx, subs = timeline(c["scenes"], tmp, voices)
         wav, wav_fx = os.path.join(tmp, "a.wav"), os.path.join(tmp, "fx.wav")
         write_wav(wav, audio)
         write_wav(wav_fx, fx)
@@ -294,8 +298,9 @@ def preview(c, outdir):
 
 def timing(c):
     """Nur Zeitplan berechnen (ohne Rendern) – für den Sprechertext."""
+    voices = align_voice.prepare(CLIPS.index(c), c["scenes"], flat_engine.SR, verbose=False)
     with tempfile.TemporaryDirectory() as tmp:
-        total, _, _, _ = timeline(c["scenes"], tmp)
+        total, _, _, _ = timeline(c["scenes"], tmp, voices)
     return c["name"], c["label"], total, [(b["t0"], b["sub"]) for s in c["scenes"] for b in s["beats"]]
 
 
@@ -322,6 +327,13 @@ def main():
         md += [f"**{fmt(t)}**  {s}  " for t, s in beats] + [""]
     with open(os.path.join(HERE, "SPRECHERTEXT.md"), "w", encoding="utf-8") as f:
         f.write("\n".join(md))
+    # Gesamtvideo aus allen Clips
+    lst = os.path.join(HERE, "clips", "liste.txt")
+    with open(lst, "w") as f:
+        f.writelines(f"file '{c['name']}.mp4'\n" for c in CLIPS)
+    subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-f", "concat", "-safe", "0", "-i", lst, "-c", "copy",
+                    "-movflags", "+faststart", os.path.join(HERE, "Lean_Production_Gesamtvideo.mp4")], check=True)
+    os.remove(lst)
 
 
 if __name__ == "__main__":

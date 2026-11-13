@@ -683,6 +683,8 @@ def render(scenes, total, outfile, wav):
             frame = draw_scene(sc, now)
             if now < 0.3:
                 frame = Image.blend(bgimg, frame, ease_io(now / 0.3))
+            elif now > total - 0.4:
+                frame = Image.blend(frame, bgimg, ease_io((now - (total - 0.4)) / 0.4))
         proc.stdin.write(frame.convert("RGB").tobytes())
     proc.stdin.close()
     proc.wait()
