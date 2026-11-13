@@ -79,7 +79,7 @@ clip("00_einfuehrung", "Einführung", [
             CHECK(830, 470, 90, f=0.4), *every(robot, ALPHA, 0.35, f=0.75), CROSS(1280, 680, 200, f=0.75)], clear=True),
     ]),
     SC([
-        B("In den nächsten Clips klären wir vier Fragen.", [TITLE("Das erwartet dich", y=150, size=70)]),
+        B("Im Folgenden klären wir vier Fragen.", [TITLE("Das erwartet dich", y=150, size=70)]),
         B("Welche Elemente gehören zu Lean? Wie setzt Fischer das um? Kosten oder Kunde? Und klappt Lean auch in der Forschung?", [
             CARD(330, 600, 380, 420, "boxes", "5 Elemente", "der Lean Production", f=0.0, tsize=33, ssize=24),
             CARD(750, 600, 380, 420, "dowel", "Lean bei Fischer", "Erfahrungen aus der Praxis", f=0.25, isize=110, tsize=33, ssize=24),
@@ -292,6 +292,13 @@ def preview(c, outdir):
             draw_scene(s, t).convert("RGB").resize((1280, 720)).save(os.path.join(outdir, f"{c['name']}_{i}_{j}.png"))
 
 
+def timing(c):
+    """Nur Zeitplan berechnen (ohne Rendern) – für den Sprechertext."""
+    with tempfile.TemporaryDirectory() as tmp:
+        total, _, _, _ = timeline(c["scenes"], tmp)
+    return c["name"], c["label"], total, [(b["t0"], b["sub"]) for s in c["scenes"] for b in s["beats"]]
+
+
 def main():
     args = sys.argv[1:]
     only = args[args.index("--only") + 1] if "--only" in args else ""
@@ -303,9 +310,10 @@ def main():
             p.starmap(preview, [(c, d) for c in todo])
         return
     with Pool(3) as p:
-        results = p.map(build, todo)
-    if only:
-        return
+        done = {r[0]: r for r in p.map(build, todo)}
+        rest = [c for c in CLIPS if c["name"] not in done]
+        done.update({r[0]: r for r in p.map(timing, rest)})
+    results = [done[c["name"]] for c in CLIPS]
     md = ["# Sprechertext – Lernclips Lean Production", "",
           "Für die Clips **ohne Ton** (Ordner `clips/ohne_ton`). Die Zeit vor jedem Satz zeigt, wann er im Clip beginnt –",
           "dann erscheinen auch die passenden Bilder. Kleine Abweichungen beim Tempo sind kein Problem.", ""]

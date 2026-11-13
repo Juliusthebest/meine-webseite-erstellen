@@ -10,8 +10,8 @@ dann erscheinen auch die passenden Bilder. Kleine Abweichungen beim Tempo sind k
 **0:10**  Und die Grundidee ist ganz einfach: Alles weglassen, was dem Kunden keinen Nutzen bringt.  
 **0:18**  Unser Beispiel ist der Dübelhersteller Klaus Fischer.  
 **0:22**  Sein Motto lautet: Menschen statt Roboter.  
-**0:27**  In den nächsten Clips klären wir vier Fragen.  
-**0:30**  Welche Elemente gehören zu Lean? Wie setzt Fischer das um? Kosten oder Kunde? Und klappt Lean auch in der Forschung?  
+**0:27**  Im Folgenden klären wir vier Fragen.  
+**0:29**  Welche Elemente gehören zu Lean? Wie setzt Fischer das um? Kosten oder Kunde? Und klappt Lean auch in der Forschung?  
 
 ## 5 Elemente  (`01_fuenf_elemente.mp4`, ca. 1:19 min)
 
