@@ -1,33 +1,48 @@
-# Professionelle Webseiten-Erstellung
+# NOIR – Modern Dining
 
-Willkommen auf unserer Webseite für professionelle Webdesign-Dienste. Diese Webseite bietet Kunden einen Überblick über unsere Dienstleistungen, Referenzen und die Möglichkeit, direkt per PayPal eine Webdesign-Leistung zu buchen.
+Premium-Restaurant-Webseite für das fiktive Restaurant **NOIR** in Berlin-Mitte.
+Gebaut mit **React 19, Vite, GSAP (ScrollTrigger) und Lenis** (weiches Scrollen).
 
-## Inhalte der Webseite
+## Starten
 
-- **Home**: Einführung in unsere Webseite und kurze Vorstellung der Webdesign-Leistungen.
-- **Über Uns**: Informationen über unser Team und unsere Leidenschaft für modernes Webdesign.
-- **Leistungen**: Details zu den angebotenen Dienstleistungen wie responsive Webdesign, SEO-Optimierung und CMS-Lösungen.
-- **Referenzen**: Beispielprojekte und bereits umgesetzte Kunden-Webseiten als Portfolio.
-- **Kontakt**: Möglichkeit zur Kontaktaufnahme für Beratungsgespräche und weitere Fragen.
+```bash
+npm install
+npm run dev       # Entwicklungsserver: http://localhost:5173
+npm run build     # Produktions-Build nach ./dist
+npm run preview   # Build lokal ansehen
+```
 
-## Funktionen
+Der Ordner `dist/` kann direkt auf Netlify, Vercel oder GitHub Pages gehostet werden (relative Pfade).
 
-- **Responsive Sidebar**: Ein ausklappbares Sidebar-Menü für eine einfache Navigation.
-- **PayPal-Integration**: Direkter "Jetzt kaufen"-Button, um eine Webdesign-Leistung zu buchen.
-- **Beispielbilder**: Bildmaterial zur Visualisierung unserer Arbeit und als Referenzen.
+## Aufbau
 
-## Technologien
+| Sektion | Datei |
+| --- | --- |
+| Preloader (Zähler + Vorhang) | `src/components/Preloader.jsx` |
+| Navigation (verändert sich beim Scrollen, mobiles Vollbild-Menü) | `src/components/Nav.jsx` |
+| Hero mit Parallax & Intro-Animation | `src/components/Hero.jsx` |
+| 01 Das Haus (asymmetrisch) | `src/components/About.jsx` |
+| 02 Unsere Küche (4 Signature-Gerichte) | `src/components/Kitchen.jsx` |
+| Laufband | `src/components/Marquee.jsx` |
+| 03 Speisekarte (Tabs, Degustation) | `src/components/Menu.jsx` |
+| 04 Galerie (Editorial-Grid) | `src/components/Gallery.jsx` |
+| 05 Reservierung (Validierung, Bestätigung) | `src/components/Reservation.jsx` |
+| 06 Standort & Kontakt (Karte) | `src/components/Contact.jsx` |
+| Footer, Impressum/Datenschutz | `src/components/Footer.jsx`, `Legal.jsx` |
 
-- **HTML**: Strukturierung des Seiteninhalts.
-- **CSS**: Styling der Seite im modernen, dunklen Design.
-- **JavaScript**: Einfache Funktionalität für die ausklappbare Sidebar.
-  
-## Installation
+- **Inhalte** (Texte, Preise, Bilder, Öffnungszeiten): `src/lib/content.js`
+- **Animationen**: `src/lib/motion.js` – deklarativ über Attribute (`data-reveal`, `data-lines`, `data-img`, `data-parallax`, `data-reveal-group`)
+- **Design-System** (Farben, Typografie, Abstände): `src/styles.css`
 
-1. Lade die Dateien herunter oder klone das Repository.
-2. Öffne `index.html` in einem Browser, um die Seite lokal anzuzeigen.
-3. Alternativ kannst du die Seite auf einem Web-Hosting-Dienst wie GitHub Pages oder Netlify hochladen, um sie online verfügbar zu machen.
+## Barrierearmut & Performance
 
-## Kontakt
+- `prefers-reduced-motion`: kein Smooth-Scroll, keine Scroll-Animationen, Preloader nur kurz eingeblendet.
+- Skip-Link, semantische Landmarks, ARIA-Tabs mit Pfeiltasten, Formular mit Fehlermeldungen und Fokusführung, Escape schließt Menü/Dialog.
+- Selbst gehostete Schriften (Cormorant Garamond + Manrope), Lazy Loading für Bilder und Karte, Bild-Fallbacks.
+- SEO: Meta-/Open-Graph-Tags und strukturierte Daten (`schema.org/Restaurant`).
 
-Bei Fragen oder zur Buchung einer Dienstleistung kannst du uns jederzeit über die Webseite oder direkt per E-Mail kontaktieren.
+## Hinweise
+
+- Bilder werden von Unsplash geladen. Für den Live-Betrieb eigene Fotos in `public/` ablegen und in `content.js` eintragen.
+- Das Reservierungsformular simuliert den Versand – hier ein echtes System (z. B. resmio, OpenTable) anbinden.
+- Impressum und Datenschutz sind Platzhalter.

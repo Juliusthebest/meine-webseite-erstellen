@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>NOIR – Modern Dining | Restaurant in Berlin-Mitte</title>
+    <meta name="description" content="NOIR – Modern Dining. Saisonale, handwerkliche Küche im Herzen von Berlin-Mitte. Degustationsmenü, Chef's Table und Weinbegleitung. Jetzt Tisch reservieren." />
+    <meta name="theme-color" content="#0e0d0b" />
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+    <link rel="preconnect" href="https://images.unsplash.com" crossorigin />
+    <link rel="preload" as="image" href="https://images.unsplash.com/photo-1514933651103-005eec06c04b?auto=format&fit=crop&w=1920&q=75" fetchpriority="high" />
+
+    <meta property="og:type" content="restaurant" />
+    <meta property="og:title" content="NOIR – Modern Dining" />
+    <meta property="og:description" content="A different taste of dining. Saisonale Küche in Berlin-Mitte." />
+    <meta property="og:image" content="https://images.unsplash.com/photo-1514933651103-005eec06c04b?auto=format&fit=crop&w=1200&q=75" />
+    <meta name="twitter:card" content="summary_large_image" />
+
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "Restaurant",
+        "name": "NOIR – Modern Dining",
+        "servesCuisine": ["Modern European", "Seasonal"],
+        "priceRange": "€€€",
+        "telephone": "+49 30 2345 6789",
+        "email": "tisch@noir-dining.de",
+        "address": {
+          "@type": "PostalAddress",
+          "streetAddress": "Linienstraße 113",
+          "postalCode": "10115",
+          "addressLocality": "Berlin",
+          "addressCountry": "DE"
+        },
+        "openingHoursSpecification": [
+          { "@type": "OpeningHoursSpecification", "dayOfWeek": ["Wednesday", "Thursday", "Friday", "Saturday"], "opens": "18:00", "closes": "23:30" },
+          { "@type": "OpeningHoursSpecification", "dayOfWeek": "Sunday", "opens": "12:00", "closes": "16:00" }
+        ],
+        "acceptsReservations": "True"
+      }
+    </script>
+  </head>
+  <body>
+    <noscript>Für die vollständige Darstellung von NOIR aktivieren Sie bitte JavaScript.</noscript>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
