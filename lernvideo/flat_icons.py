@@ -646,3 +646,74 @@ ICONS = {
     "dice": dice, "parallel": parallel, "gear": gear, "clock": clock, "hourglass": hourglass,
     "customer": customer, "worker": worker, "robot": robot, "factory": factory, "dowel": dowel, "flag_jp": flag_jp,
 }
+
+
+# =========================================================================== Ergänzungen (Video 2)
+def fiber(s):
+    """Glasfaserkabel mit Stecker und leuchtendem Ende."""
+    u = s / 100
+    a, b, c = sq(s, 3)
+    a.line([(4 * u, 86 * u), (24 * u, 82 * u), (42 * u, 70 * u), (56 * u, 56 * u)], NAVY, 13 * u)
+    a.line([(4 * u, 86 * u), (24 * u, 82 * u), (42 * u, 70 * u), (56 * u, 56 * u)], LBLUE, 4 * u)
+    a.rect(52 * u, 40 * u, 74 * u, 62 * u, DARK, r=3 * u)
+    a.rect(74 * u, 46 * u, 82 * u, 56 * u, GREY, r=1 * u)
+    b.circ(87 * u, 51 * u, 7 * u, MUSTARD)
+    for (x1, y1, x2, y2) in ((92, 38, 98, 28), (96, 51, 100, 51), (92, 64, 98, 74)):
+        c.line([(x1 * u, y1 * u), (x2 * u, y2 * u)], ORANGE, 4 * u)
+    return [a.done(), b.done(), c.done()]
+
+
+def machine(s):
+    """Produktionsmaschine."""
+    u = s / 100
+    a, b, c = sq(s, 3)
+    a.rect(6 * u, 34 * u, 94 * u, 86 * u, NAVY, r=6 * u)
+    a.rect(6 * u, 86 * u, 94 * u, 94 * u, DARK, r=2 * u)
+    a.rect(14 * u, 44 * u, 50 * u, 72 * u, LBLUE, r=3 * u)
+    b.circ(72 * u, 56 * u, 14 * u, MUSTARD)
+    b.circ(72 * u, 56 * u, 5 * u, NAVY)
+    b.rect(60 * u, 76 * u, 86 * u, 80 * u, LGREY, r=2 * u)
+    c.rect(20 * u, 12 * u, 40 * u, 34 * u, GREY, r=2 * u)
+    c.circ(30 * u, 10 * u, 6 * u, ORANGE)
+    return [a.done(), b.done(), c.done()]
+
+
+def megaphone(s):
+    u = s / 100
+    a, b = sq(s, 2)
+    a.poly([(20 * u, 38 * u), (70 * u, 12 * u), (70 * u, 88 * u), (20 * u, 62 * u)], ORANGE)
+    a.rect(8 * u, 36 * u, 24 * u, 64 * u, NAVY, r=3 * u)
+    a.rect(30 * u, 62 * u, 42 * u, 92 * u, NAVY, r=3 * u)
+    for ang in (-25, 0, 25):
+        r = math.radians(ang)
+        b.line([(80 * u + 4 * u * math.cos(r), 50 * u + 30 * u * math.sin(r)),
+                (80 * u + 16 * u * math.cos(r), 50 * u + 40 * u * math.sin(r))], MUSTARD, 5 * u)
+    return [a.done(), b.done()]
+
+
+def cap(s):
+    """Doktorhut (Weiterbildung)."""
+    u = s / 100
+    a, b = sq(s, 2)
+    a.poly([(50 * u, 16 * u), (96 * u, 38 * u), (50 * u, 60 * u), (4 * u, 38 * u)], NAVY)
+    a.poly([(24 * u, 50 * u), (76 * u, 50 * u), (76 * u, 76 * u), (50 * u, 86 * u), (24 * u, 76 * u)], (44, 80, 115))
+    b.line([(50 * u, 38 * u), (84 * u, 48 * u), (84 * u, 74 * u)], MUSTARD, 3.5 * u)
+    b.circ(84 * u, 78 * u, 6 * u, MUSTARD)
+    return [a.done(), b.done()]
+
+
+def outsource(s):
+    """Outsourcing: Aufgabe wandert zu einem Partner."""
+    u = s / 100
+    a, b, c = sq(s, 3)
+    a.rect(4 * u, 44 * u, 40 * u, 92 * u, NAVY, r=3 * u)
+    a.poly([(4 * u, 44 * u), (22 * u, 28 * u), (40 * u, 44 * u)], NAVY)
+    a.rect(60 * u, 44 * u, 96 * u, 92 * u, GREY, r=3 * u)
+    a.poly([(60 * u, 44 * u), (78 * u, 28 * u), (96 * u, 44 * u)], GREY)
+    b.rect(38 * u, 6 * u, 62 * u, 26 * u, MUSTARD, r=2 * u)
+    c.arc(50 * u, 40 * u, 28 * u, 200, 340, ORANGE, 5 * u)
+    c.poly([(76 * u, 32 * u), (82 * u, 46 * u), (68 * u, 44 * u)], ORANGE)
+    return [a.done(), b.done(), c.done()]
+
+
+ICONS.update({"fiber": fiber, "machine": machine, "megaphone": megaphone, "cap": cap, "outsource": outsource})

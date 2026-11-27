@@ -27,7 +27,10 @@ def parse(md):
     return clips
 
 
-def build_html(clips):
+SUBTITLE = "Lernclips „Lean Production in der Praxis“ – am Beispiel des Dübelherstellers Fischer"
+
+
+def build_html(clips, subtitle=SUBTITLE):
     faces = "".join(
         f"@font-face{{font-family:M;font-weight:{w};src:url('file://{FONT.format(n)}')}}"
         for n, w in (("Medium", 500), ("SemiBold", 600), ("Bold", 700), ("ExtraBold", 800)))
@@ -54,7 +57,7 @@ def build_html(clips):
     .box{width:13px;height:13px;border:1.6px solid #9aa8b3;border-radius:3px;margin-top:4px}
     """
     parts = ["<div class='cover'><h1>Sprechertext</h1>",
-             "<div class='sub'>Lernclips „Lean Production in der Praxis“ – am Beispiel des Dübelherstellers Fischer</div>",
+             f"<div class='sub'>{html.escape(subtitle)}</div>",
              "<ul class='tips'>",
              "<li>Für die Clips <b>ohne Ton</b> (Ordner <i>clips/ohne_ton</i>). Spiel den Clip ab und sprich mit.</li>",
              "<li>Die rote Zeit zeigt, wann der Satz im Clip beginnt – dann erscheinen auch die passenden Bilder.</li>",
@@ -69,11 +72,11 @@ def build_html(clips):
     return f"<!doctype html><html lang='de'><head><meta charset='utf-8'><style>{css}</style></head><body>{''.join(parts)}</body></html>"
 
 
-def main():
-    with open(os.path.join(HERE, "SPRECHERTEXT.md"), encoding="utf-8") as f:
+def main(folder=HERE, subtitle=SUBTITLE):
+    with open(os.path.join(folder, "SPRECHERTEXT.md"), encoding="utf-8") as f:
         clips = parse(f.read())
-    page_html = build_html(clips)
-    out = os.path.join(HERE, "Sprechertext.pdf")
+    page_html = build_html(clips, subtitle)
+    out = os.path.join(folder, "Sprechertext.pdf")
     footer = ("<div style='font-size:8pt;color:#8a98a3;width:100%;text-align:center'>"
               "Seite <span class='pageNumber'></span> von <span class='totalPages'></span></div>")
     with tempfile.TemporaryDirectory() as tmp:
@@ -99,4 +102,8 @@ const {{ chromium }} = require('playwright');
 
 
 if __name__ == "__main__":
-    main()
+    import sys
+    if len(sys.argv) > 2:
+        main(os.path.abspath(sys.argv[1]), sys.argv[2])
+    else:
+        main()
